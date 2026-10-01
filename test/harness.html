@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>AIUX DevTools harness</title>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      body { display: grid; grid-template-rows: 45% 55%; grid-template-columns: 1fr 340px; }
+      iframe { border: 0; width: 100%; height: 100%; }
+      #inspected { grid-column: 1 / 3; border-bottom: 2px solid #888; }
+      #sidebar { border-left: 2px solid #888; }
+    </style>
+  </head>
+  <body>
+    <!-- Top: the "inspected page". Bottom: the real panel + Elements sidebar, driven by a chrome.devtools mock. -->
+    <iframe id="inspected" name="inspected" src="/test/fixtures/demo.html"></iframe>
+    <script>
+      const theme = new URLSearchParams(location.search).get('theme') || 'default';
+      document.getElementById('inspected').addEventListener('load', () => {
+        for (const [id, src] of [['panel', '/panel/panel.html'], ['sidebar', '/sidebar/sidebar.html']]) {
+          const f = document.createElement('iframe');
+          f.id = id;
+          f.src = src + '?mock&theme=' + theme;
+          document.body.appendChild(f);
+        }
+      }, { once: true });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "sn-aiux-devtools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome DevTools extension for inspecting ServiceNow AIUX / Next Experience component properties and state.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "demo": "node test/serve.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "playwright": "1.56.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}

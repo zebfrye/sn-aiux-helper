@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>AIUX</title>
+    <link rel="stylesheet" href="../shared/devtools.css">
+    <link rel="stylesheet" href="panel.css">
+  </head>
+  <body>
+    <div class="toolbar">
+      <button id="pick" title="Select a component in the page to inspect it">⬚ Pick</button>
+      <button id="refresh" title="Rebuild the component tree">⟳</button>
+      <input id="filter" type="search" placeholder="Filter components (tag, id, React name)…">
+      <label title="Poll the page for changes"><input id="live" type="checkbox"> Live</label>
+      <button id="settings-toggle" title="Settings">⚙</button>
+      <span id="status" class="status"></span>
+    </div>
+
+    <form id="settings" class="settings hidden">
+      <label>
+        Component tag pattern (RegExp)
+        <input id="tagPattern" type="text" spellcheck="false">
+      </label>
+      <label class="check"><input id="allCustomElements" type="checkbox"> Show every custom element (ignore pattern)</label>
+      <label class="check"><input id="includeReact" type="checkbox"> Detect React components (props &amp; hooks)</label>
+      <label>
+        Extra state paths on the host element, one per line — e.g. <code>__myFramework.state</code> or <code>store.getState()</code>
+        <textarea id="statePaths" rows="3" spellcheck="false"></textarea>
+      </label>
+      <div class="settings-actions">
+        <button type="button" id="settings-reset">Reset to defaults</button>
+        <button type="submit">Apply</button>
+      </div>
+    </form>
+
+    <div class="main">
+      <div id="tree" class="tree" tabindex="0"></div>
+      <div id="splitter" class="splitter"></div>
+      <div id="details" class="details"></div>
+    </div>
+
+    <script src="../shared/bridge.js"></script>
+    <script src="../shared/settings.js"></script>
+    <script src="../shared/details.js"></script>
+    <script src="panel.js"></script>
+  </body>
+</html>

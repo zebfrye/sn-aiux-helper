@@ -1,0 +1,57 @@
+body { display: flex; flex-direction: column; overflow: hidden; }
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+  flex: none;
+}
+.toolbar #filter { flex: 0 1 280px; min-width: 120px; }
+.toolbar label { display: flex; align-items: center; gap: 3px; user-select: none; }
+.status { margin-left: auto; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status.error { color: var(--error); }
+
+.settings {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+  flex: none;
+}
+.settings label { display: grid; gap: 2px; }
+.settings label.check { display: flex; gap: 4px; align-items: center; }
+.settings code { font-family: var(--font-mono); }
+.settings-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+.main { flex: 1; display: flex; min-height: 0; }
+.tree {
+  width: 40%;
+  min-width: 160px;
+  overflow: auto;
+  font: 12px/20px var(--font-mono);
+  outline: none;
+  padding-bottom: 20px;
+}
+.splitter { width: 4px; flex: none; cursor: col-resize; background: var(--border); }
+.details { flex: 1; overflow: auto; min-width: 200px; }
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  cursor: pointer;
+  padding-right: 8px;
+}
+.tree-row:hover { background: var(--bg-hover); }
+.tree-row.selected { background: var(--bg-selected); }
+.tree-row .twisty { cursor: pointer; }
+.tree-row .name { color: var(--key); }
+.tree-row.kind-react .name { color: #0b7fab; }
+body.dark .tree-row.kind-react .name { color: #61dafb; }
+.tree-row.kind-ce-undefined .name { color: var(--muted); font-style: italic; }
+.tree-row .react-tag { color: var(--muted); margin-left: 6px; font-size: 11px; }
+.tree-row mark { background: var(--flash); color: inherit; }
