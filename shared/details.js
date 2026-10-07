@@ -1,12 +1,14 @@
 /*
- * DetailsView — renders a component's sections (properties, state, React
- * props/hooks, attributes, host internals) as expandable, editable value
- * trees. Used by both the AIUX panel and the Elements sidebar.
+ * DetailsView — renders a subject's sections as expandable, editable value
+ * trees. A subject is a component (properties, state, events, listeners,
+ * React props/hooks, attributes, host internals) or an event from the Events
+ * logger (detail + event info). Used by the AIUX panel and the Elements
+ * sidebar.
  */
 (function (global) {
   'use strict';
 
-  const { call, revealInElements } = global.AiuxBridge;
+  const { call, callWithListeners, revealInElements, revealValue } = global.AiuxBridge;
 
   function h(tag, attrs, ...children) {
     const el = document.createElement(tag);
@@ -51,20 +53,24 @@
   class DetailsView {
     /**
      * @param {HTMLElement} root container
-     * @param {{getOptions: () => object, compact?: boolean, onStatus?: (msg: string, isError?: boolean) => void, onSelectId?: (id: number) => void}} cfg
+     * @param {{getOptions: () => object, compact?: boolean, emptyMessage?: string, goneMessage?: string, onStatus?: (msg: string, isError?: boolean) => void, onSelectId?: (id: number) => void}} cfg
      */
     constructor(root, cfg) {
       this.root = root;
       this.cfg = cfg;
       this.id = null;
       this.expanded = {}; // sectionKey -> { pathKey: 1 }
-      this.collapsedSections = new Set(['internals']);
+      this.collapsedSections = new Set(['internals', 'listeners']);
       this.openedSections = new Set();
       this.previous = new Map(); // "section|pathKey" -> preview (for change flashes)
       this.editing = false;
       this.inflight = false;
       this.last = null;
-      this.renderEmpty('Select a component to inspect its properties and state.');
+      this.renderEmpty(this.emptyMessage());
+    }
+
+    emptyMessage() {
+      return this.cfg.emptyMessage || 'Select a component to inspect its properties and state.';
     }
 
     status(msg, isError) {
@@ -87,7 +93,7 @@
     clear(message) {
       this.id = null;
       this.last = null;
-      this.renderEmpty(message || 'Select a component to inspect its properties and state.');
+      this.renderEmpty(message || this.emptyMessage());
     }
 
     async refresh(force) {
@@ -95,11 +101,11 @@
       this.inflight = true;
       const id = this.id;
       try {
-        const data = await call('inspect', id, this.cfg.getOptions({ expanded: this.expanded }));
+        const data = await callWithListeners('inspect', id, this.cfg.getOptions({ expanded: this.expanded }));
         if (id !== this.id) return;
         if (!data || data.error) {
           this.last = null;
-          this.renderEmpty('The selected component is no longer in the page.');
+          this.renderEmpty(this.cfg.goneMessage || 'The selected component is no longer in the page.');
           return;
         }
         const sig = JSON.stringify(data);
@@ -119,24 +125,38 @@
       const header = h(
         'div',
         { class: 'details-header' },
-        h('div', { class: 'title' }, h('span', { class: 'tag', text: data.label.charAt(0) === '<' ? data.label : '<' + data.label + '>' })),
+        h('div', { class: 'title' }, h('span', { class: 'tag', text: data.subject === 'event' || data.label.charAt(0) === '<' ? data.label : '<' + data.label + '>' })),
         h('div', { class: 'badges' }, data.kinds.map((k) => h('span', { class: 'badge badge-' + k.toLowerCase().replace(/\s+/g, '-'), text: k }))),
-        h(
-          'div',
-          { class: 'actions' },
-          h('button', { title: 'Reveal in Elements panel', onclick: () => revealInElements(this.id) }, '⌖ Elements'),
-          h('button', { title: 'Scroll into view', onclick: () => call('scrollIntoView', this.id) }, '↧ Scroll'),
-          h('button', {
-            title: 'Store the host element as a global variable in the console',
-            onclick: async () => this.status('Stored as ' + (await call('storeGlobal', this.id, null, null, this.cfg.getOptions())))
-          }, '$ Store')
-        )
+        h('div', { class: 'actions' }, this.headerActions(data))
       );
 
       const body = h('div', { class: 'sections' });
       for (const section of data.sections) body.appendChild(this.renderSection(section));
       this.root.replaceChildren(header, body);
       this.root.scrollTop = scrollTop;
+    }
+
+    headerActions(data) {
+      const store = h('button', {
+        title: data.subject === 'event' ? 'Store the Event object as a global variable in the console' : 'Store the host element as a global variable in the console',
+        onclick: async () => {
+          const name = await call('storeGlobal', this.id, null, null, this.cfg.getOptions());
+          this.status(name ? 'Stored as ' + name : 'Could not store value', !name);
+        }
+      }, '$ Store');
+      if (data.subject === 'event') {
+        return [
+          data.source && this.cfg.onSelectId
+            ? h('button', { class: 'go-source', title: 'Inspect the component that dispatched this event', onclick: () => this.cfg.onSelectId(data.source) }, '⌖ ' + data.sourceLabel)
+            : null,
+          store
+        ];
+      }
+      return [
+        h('button', { title: 'Reveal in Elements panel', onclick: () => revealInElements(this.id) }, '⌖ Elements'),
+        h('button', { title: 'Scroll into view', onclick: () => call('scrollIntoView', this.id) }, '↧ Scroll'),
+        store
+      ];
     }
 
     isSectionCollapsed(section) {
@@ -217,7 +237,10 @@
           'span',
           { class: 'row-actions' },
           h('button', { title: 'Copy value as JSON', onclick: (e) => { e.stopPropagation(); this.copy(section, path); } }, '⧉'),
-          h('button', { title: 'Store as global variable', onclick: (e) => { e.stopPropagation(); this.storeGlobal(section, path); } }, '$')
+          h('button', { title: 'Store as global variable', onclick: (e) => { e.stopPropagation(); this.storeGlobal(section, path); } }, '$'),
+          node.t === 'function'
+            ? h('button', { title: 'Show function definition', onclick: (e) => { e.stopPropagation(); revealValue(this.id, section.key, path, this.cfg.getOptions()); } }, '{}')
+            : null
         )
       );
 
@@ -301,7 +324,7 @@
     }
 
     async copy(section, path) {
-      const text = await call('copyValue', this.id, section.key, path, this.cfg.getOptions());
+      const text = await callWithListeners('copyValue', this.id, section.key, path, this.cfg.getOptions());
       if (text === null || text === undefined) return this.status('Nothing to copy', true);
       // navigator.clipboard is blocked in DevTools pages; use a textarea.
       const ta = h('textarea', { style: 'position:fixed;left:-9999px' });
@@ -314,7 +337,7 @@
     }
 
     async storeGlobal(section, path) {
-      const name = await call('storeGlobal', this.id, section.key, path, this.cfg.getOptions());
+      const name = await callWithListeners('storeGlobal', this.id, section.key, path, this.cfg.getOptions());
       this.status(name ? 'Stored as ' + name + ' — use it in the Console' : 'Could not store value', !name);
     }
   }

@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var GLOBAL = '__SN_AIUX_DEVTOOLS__';
 
   if (window[GLOBAL] && window[GLOBAL].version === VERSION) {
@@ -427,7 +427,99 @@
   function isComponentElement(el, ctx) {
     if (!isCustomElementTag(el)) return false;
     if (ctx.allCustomElements) return true;
-    return ctx.tagRe.test(el.localName);
+    return ctx.tagRe.test(el.localName) || isAiuxElement(el);
+  }
+
+  // ---- Lit / AIUX ----------------------------------------------------------
+  //
+  // AIUX components are Lit elements extending AIUXElement
+  // (@servicenow/aiux/aiux-components-core). Lit keeps every reactive field in
+  // `static elementProperties` (a Map of name -> options), and `@state()`
+  // fields are marked with `options.state === true`, so properties and state
+  // can be told apart exactly. Class names are minified in production builds,
+  // so AIUXElement is recognised by its public API instead.
+
+  function isMapLike(v) {
+    return Object.prototype.toString.call(v) === '[object Map]';
+  }
+
+  function litProperties(el) {
+    var ctor = el && el.constructor;
+    if (!ctor || ctor === Object) return null;
+    var got = safeGet(ctor, 'elementProperties');
+    return got.ok && isMapLike(got.value) ? got.value : null;
+  }
+
+  function isAiuxElement(el) {
+    try {
+      return typeof el.setLoaderData === 'function' && typeof el.trackEvent === 'function' && litProperties(el) !== null;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function sortFieldNames(a, b) {
+    // Public names first, then _private ones; alphabetical within each group.
+    var pa = a.charAt(0) === '_';
+    var pb = b.charAt(0) === '_';
+    if (pa !== pb) return pa ? 1 : -1;
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+
+  function litRoots(el, props) {
+    var publicNames = [];
+    var stateNames = [];
+    props.forEach(function (options, key) {
+      // Symbol-keyed storage (e.g. AIUXElement's `data`) is shown in the AIUX section.
+      if (typeof key !== 'string') return;
+      (options && options.state ? stateNames : publicNames).push(key);
+    });
+    function build(names) {
+      var obj = {};
+      names.sort(sortFieldNames).forEach(function (n) {
+        var got = safeGet(el, n);
+        obj[n] = got.ok ? got.value : new Error('<getter threw: ' + got.error + '>');
+      });
+      return obj;
+    }
+    return { props: build(publicNames), state: build(stateNames), stateCount: stateNames.length };
+  }
+
+  /** `@config` fields: AIUX records them in `configSchema` on each class prototype. */
+  function configSchemaOf(el) {
+    var entries = [];
+    var seen = {};
+    var proto = Object.getPrototypeOf(el);
+    var guard = 0;
+    while (proto && proto !== Object.prototype && guard++ < 30) {
+      var own = Object.prototype.hasOwnProperty.call(proto, 'configSchema') ? proto.configSchema : null;
+      if (Array.isArray(own)) {
+        for (var i = 0; i < own.length; i++) {
+          var c = own[i];
+          if (c && typeof c.key === 'string' && !seen[c.key]) {
+            seen[c.key] = 1;
+            entries.push(c);
+          }
+        }
+      }
+      proto = Object.getPrototypeOf(proto);
+    }
+    return entries;
+  }
+
+  var AIUX_FIELDS = ['data', 'loaderData', 'serverScriptData', 'loaderScopeKey', 'isEmbedded'];
+
+  function aiuxRoot(el) {
+    var obj = {};
+    for (var i = 0; i < AIUX_FIELDS.length; i++) {
+      var got = safeGet(el, AIUX_FIELDS[i]);
+      obj[AIUX_FIELDS[i]] = got.ok ? got.value : new Error('<getter threw: ' + got.error + '>');
+    }
+    var caps = safeGet(el.constructor, 'capabilities');
+    if (caps.ok && caps.value) obj.capabilities = caps.value;
+    var role = safeGet(el.constructor, 'capabilityRole');
+    if (role.ok && role.value) obj.capabilityRole = role.value;
+    return obj;
   }
 
   function isDefined(el) {
@@ -798,11 +890,38 @@
   // ---------------------------------------------------------------------------
 
   /** Build the raw (unserialised) sections for an element. */
-  function rawSections(el, ctx) {
+  function rawSections(el, ctx, gel) {
     var sections = [];
     var isCE = isCustomElementTag(el);
+    var lit = isCE ? litProperties(el) : null;
 
-    if (isCE) {
+    if (lit) {
+      var roots = litRoots(el, lit);
+      sections.push({
+        key: 'properties',
+        title: 'Properties',
+        root: roots.props,
+        editable: true,
+        note: 'Lit reactive properties (static elementProperties) · writes assign host[prop]'
+      });
+      sections.push({
+        key: 'state',
+        title: 'State',
+        root: roots.state,
+        editable: true,
+        note: roots.stateCount ? 'Lit @state() fields · writes assign host[field] (triggers a re-render)' : 'this component declares no @state() fields',
+        empty: !roots.stateCount
+      });
+      var schema = configSchemaOf(el);
+      if (schema.length) {
+        var cfg = {};
+        schema.forEach(function (c) {
+          var got = safeGet(el, c.key);
+          cfg[c.key] = got.ok ? got.value : new Error('<getter threw: ' + got.error + '>');
+        });
+        sections.push({ key: 'config', title: 'Config', root: cfg, editable: true, note: '@config fields · values come from aiuxConfigData; writes update aiuxConfigData' });
+      }
+    } else if (isCE) {
       var props = propertiesRoot(el);
       sections.push({
         key: 'properties',
@@ -822,6 +941,13 @@
         note: st ? 'from host.' + st.source + (updater ? ' · writes via ' + updater.name + '()' : ' · writes mutate in place') : 'no state object found on the host (add a path in Settings)',
         empty: !st
       });
+    }
+
+    if (isCE) {
+      sections = sections.concat(eventSectionsFor(el, gel));
+    }
+    if (lit && isAiuxElement(el)) {
+      sections.push({ key: 'aiux', title: 'AIUX', root: aiuxRoot(el), editable: true, note: 'AIUXElement data · only `data` is writable' });
     }
 
     var ri = ctx.includeReact ? reactInfo(el) : null;
@@ -852,6 +978,334 @@
     }
     if (isCE) {
       sections.push({ key: 'internals', title: 'Host internals', root: internalsRoot(el), editable: false, collapsed: true, note: 'own (incl. non-enumerable & symbol) properties of the host element' });
+    }
+    return sections;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Event capture (the Events logger)
+  //
+  // AIUX components fire plain DOM CustomEvents via host.dispatchEvent(...),
+  // e.g. `aiux-checklist:item-clicked`. While recording, EventTarget's
+  // dispatchEvent is wrapped in every same-origin window so each dispatch is
+  // logged before it reaches its listeners. The wrapper always calls through
+  // to the original with the same arguments and returns its result.
+  // ---------------------------------------------------------------------------
+
+  var MAX_EVENTS = 2000;
+  var SESSION = Math.random().toString(36).slice(2, 10);
+  // trimmedTo: highest seq evicted by the ring buffer (not by clearEvents).
+  var capture = { active: false, mode: 'components', ctx: null, seq: 0, events: [], patches: [], trimmedTo: 0 };
+  var catalog = null;
+
+  function patchWindow(win) {
+    var proto;
+    try {
+      proto = win.EventTarget && win.EventTarget.prototype;
+    } catch (e) {
+      return; // cross-origin frame
+    }
+    if (!proto) return;
+    for (var i = 0; i < capture.patches.length; i++) {
+      if (capture.patches[i].proto === proto) return;
+    }
+    var desc = Object.getOwnPropertyDescriptor(proto, 'dispatchEvent');
+    if (!desc || typeof desc.value !== 'function') return;
+    var original = desc.value;
+    var wrapper = function dispatchEvent(event) {
+      if (!capture.active) return original.apply(this, arguments);
+      var rec = null;
+      try {
+        rec = recordStart(this, event);
+      } catch (e) {
+        rec = null;
+      }
+      if (!rec) return original.apply(this, arguments);
+      var t0 = performance.now();
+      try {
+        return original.apply(this, arguments);
+      } finally {
+        rec.dur = performance.now() - t0;
+        try { rec.prevented = !!event.defaultPrevented; } catch (e) { /* ignore */ }
+      }
+    };
+    try {
+      Object.defineProperty(proto, 'dispatchEvent', {
+        value: wrapper,
+        writable: desc.writable,
+        enumerable: desc.enumerable,
+        configurable: desc.configurable
+      });
+      capture.patches.push({ proto: proto, original: original, wrapper: wrapper });
+    } catch (e) { /* non-configurable: cannot record in this window */ }
+  }
+
+  function patchAllFrames(win, depth) {
+    patchWindow(win);
+    if ((depth || 0) > 5) return;
+    var frames;
+    try { frames = win.frames; } catch (e) { return; }
+    for (var i = 0; frames && i < frames.length; i++) {
+      try { patchAllFrames(frames[i], (depth || 0) + 1); } catch (e) { /* cross-origin */ }
+    }
+  }
+
+  function unpatchAll() {
+    capture.patches = capture.patches.filter(function (p) {
+      if (p.proto.dispatchEvent !== p.wrapper) return true; // someone wrapped us; stay (inactive)
+      try {
+        var desc = Object.getOwnPropertyDescriptor(p.proto, 'dispatchEvent');
+        Object.defineProperty(p.proto, 'dispatchEvent', {
+          value: p.original,
+          writable: desc.writable,
+          enumerable: desc.enumerable,
+          configurable: desc.configurable
+        });
+        return false;
+      } catch (e) {
+        return true;
+      }
+    });
+  }
+
+  function isWindowObject(v) {
+    try { return !!v && v.window === v; } catch (e) { return false; }
+  }
+
+  function eventElement(target) {
+    if (!target || typeof target.nodeType !== 'number') return null;
+    if (target.nodeType === 1) return target;
+    if (target.nodeType === 11 && target.host) return target.host;
+    return null;
+  }
+
+  function nonElementLabel(target) {
+    if (isWindowObject(target)) return 'window';
+    if (target && target.nodeType === 9) return '#document';
+    if (target && target.nodeType === 11) return '#document-fragment';
+    return ctorName(target);
+  }
+
+  function elementLabel(el) {
+    if (isCustomElementTag(el)) return componentLabel(el);
+    var ri = reactInfo(el);
+    return ri ? '<' + ri.name + '>' : nodePreview(el);
+  }
+
+  /** Components an event passes through while bubbling (source first). */
+  function propagationPath(el, composed) {
+    var out = [];
+    var cur = el;
+    var guard = 0;
+    while (cur && guard++ < 5000 && out.length < 30) {
+      if (cur.nodeType === 1 && isComponentElement(cur, capture.ctx)) out.push(componentLabel(cur));
+      var parent = cur.parentNode;
+      if (parent && parent.nodeType === 11) {
+        if (!composed || !parent.host) break;
+        cur = parent.host;
+      } else {
+        cur = parent;
+      }
+    }
+    return out;
+  }
+
+  function recordStart(target, event) {
+    var el = eventElement(target);
+    var source = el ? nearestComponent(el, capture.ctx) : null;
+    var isCustom = Object.prototype.toString.call(event) === '[object CustomEvent]';
+    if (capture.mode !== 'all' && !source) {
+      // Outside components, keep only app-level CustomEvents on window/document.
+      var appLevel = isCustom && !el && (isWindowObject(target) || (target && target.nodeType === 9));
+      if (!appLevel) return null;
+    }
+
+    var hasDetail = false;
+    var detail;
+    try {
+      if ('detail' in event) {
+        hasDetail = true;
+        detail = event.detail;
+      }
+    } catch (e) { /* ignore */ }
+    var snapshot = detail;
+    var live = false;
+    if (hasDetail && isObjectLike(detail)) {
+      try {
+        snapshot = structuredClone(detail);
+      } catch (e) {
+        live = true; // functions / DOM nodes: keep the live reference
+      }
+    }
+
+    var rec = {
+      seq: ++capture.seq,
+      time: Date.now(),
+      type: String(event.type),
+      cls: ctorName(event),
+      event: event,
+      hasDetail: hasDetail,
+      detail: snapshot,
+      live: live,
+      targetLabel: el ? elementLabel(el) : nonElementLabel(target),
+      sourceId: source ? register(source) : 0,
+      sourceTag: source ? source.localName : '',
+      sourceLabel: source ? elementLabel(source) : '',
+      bubbles: !!event.bubbles,
+      composed: !!event.composed,
+      cancelable: !!event.cancelable,
+      trusted: !!event.isTrusted,
+      path: el && event.bubbles ? propagationPath(el, event.composed) : [],
+      prevented: false,
+      dur: 0
+    };
+    capture.events.push(rec);
+    if (capture.events.length > MAX_EVENTS + 200) {
+      var evicted = capture.events.splice(0, capture.events.length - MAX_EVENTS);
+      capture.trimmedTo = evicted[evicted.length - 1].seq;
+    }
+    return rec;
+  }
+
+  function eventSummary(rec) {
+    return {
+      s: rec.seq,
+      t: rec.time,
+      type: rec.type,
+      cls: rec.cls,
+      src: rec.sourceId,
+      sl: rec.sourceLabel || rec.targetLabel,
+      p: rec.hasDetail ? preview(rec.detail) : '',
+      f: (rec.bubbles ? 'B' : '') + (rec.composed ? 'C' : '') + (rec.cancelable ? 'X' : ''),
+      pv: rec.prevented ? 1 : 0,
+      d: Math.round(rec.dur * 100) / 100
+    };
+  }
+
+  function captureStatus() {
+    return { session: SESSION, active: capture.active, mode: capture.mode, seq: capture.seq, size: capture.events.length };
+  }
+
+  function findEventRecord(id) {
+    var m = /^event:([^:]+):(\d+)$/.exec(String(id));
+    if (!m || m[1] !== SESSION) return null;
+    var seq = Number(m[2]);
+    for (var i = capture.events.length - 1; i >= 0; i--) {
+      if (capture.events[i].seq === seq) return capture.events[i];
+      if (capture.events[i].seq < seq) break;
+    }
+    return null;
+  }
+
+  function declaredEvents(tag) {
+    var list = catalog && catalog.tags && catalog.tags[tag];
+    return Array.isArray(list) ? list : [];
+  }
+
+  function timeLabel(ms) {
+    var d = new Date(ms);
+    function pad(n, w) { n = String(n); while (n.length < (w || 2)) n = '0' + n; return n; }
+    return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '.' + pad(d.getMilliseconds(), 3);
+  }
+
+  function eventSections(rec) {
+    var declared = declaredEvents(rec.sourceTag).filter(function (d) { return d.name === rec.type; })[0];
+    var info = {
+      type: rec.type,
+      time: timeLabel(rec.time),
+      'event class': rec.cls,
+      source: rec.sourceLabel || '(not inside a component)',
+      target: rec.targetLabel,
+      declared: declared ? 'yes — @fires on ' + rec.sourceTag + (declared.detail ? ' (detail: ' + declared.detail + ')' : '') : (rec.sourceTag ? 'not declared by ' + rec.sourceTag : 'n/a'),
+      bubbles: rec.bubbles,
+      composed: rec.composed,
+      cancelable: rec.cancelable,
+      defaultPrevented: rec.prevented,
+      isTrusted: rec.trusted,
+      'listener time (ms)': Math.round(rec.dur * 1000) / 1000,
+      'propagates through': rec.path
+    };
+    return [
+      {
+        key: 'event.detail',
+        title: 'Detail',
+        root: rec.detail,
+        editable: false,
+        note: !rec.hasDetail ? 'this event has no detail' : rec.live ? 'live reference (could not be cloned) — shows current values' : 'snapshot taken at dispatch time',
+        empty: !rec.hasDetail
+      },
+      { key: 'event.info', title: 'Event', root: info, editable: false }
+    ];
+  }
+
+  /** Events + listeners sections for a component (Components tab). */
+  function eventSectionsFor(el, gel) {
+    var sections = [];
+    var declared = declaredEvents(el.localName);
+    var id = idByElement.get(el);
+    var observed = {};
+    var observedCount = 0;
+    if (id) {
+      for (var i = 0; i < capture.events.length; i++) {
+        var rec = capture.events[i];
+        if (rec.sourceId !== id) continue;
+        var o = observed[rec.type] || (observed[rec.type] = { n: 0, last: 0 });
+        o.n++;
+        o.last = rec.time;
+        observedCount++;
+      }
+    }
+    var root = {};
+    declared.forEach(function (d) {
+      var o = observed[d.name];
+      var parts = [];
+      if (o) parts.push('×' + o.n + ' dispatched, last ' + timeLabel(o.last));
+      if (d.detail) parts.push('detail: ' + d.detail);
+      if (d.description) parts.push(d.description);
+      root[d.name] = parts.join(' · ') || 'declared';
+    });
+    Object.keys(observed).sort().forEach(function (name) {
+      if (name in root) return;
+      var o = observed[name];
+      root[name] = '×' + o.n + ' dispatched, last ' + timeLabel(o.last) + ' · not declared (@fires)';
+    });
+    var noteParts = [];
+    noteParts.push(declared.length ? declared.length + ' declared via @fires' + (catalog && catalog.source ? ' (' + catalog.source + ')' : '') : 'no declared events in the catalog');
+    noteParts.push(capture.active || capture.events.length ? observedCount + ' dispatched while recording' : 'record in the Events tab to count dispatched events');
+    sections.push({ key: 'events', title: 'Events', root: root, editable: false, note: noteParts.join(' · '), empty: !Object.keys(root).length });
+
+    if (typeof gel === 'function') {
+      var listeners = {};
+      var count = 0;
+      var targets = [['', el]];
+      if (el.shadowRoot) targets.push([' (shadow root)', el.shadowRoot]);
+      targets.forEach(function (t) {
+        var map = null;
+        try { map = gel(t[1]); } catch (e) { map = null; }
+        if (!map) return;
+        Object.keys(map).sort().forEach(function (type) {
+          (map[type] || []).forEach(function (l) {
+            var flags = [];
+            if (l.useCapture) flags.push('capture');
+            if (l.passive) flags.push('passive');
+            if (l.once) flags.push('once');
+            var base = type + t[0] + (flags.length ? ' · ' + flags.join(', ') : '');
+            var key = base;
+            var n = 2;
+            while (key in listeners) key = base + ' #' + n++;
+            listeners[key] = l.listener;
+            count++;
+          });
+        });
+      });
+      sections.push({
+        key: 'listeners',
+        title: 'Event listeners',
+        root: listeners,
+        editable: false,
+        note: 'registered on the host and its shadow root · hover a function and click {} to open its source',
+        empty: !count
+      });
     }
     return sections;
   }
@@ -1019,6 +1473,43 @@
     return ids;
   }
 
+  /**
+   * Resolve an inspection subject: a component id (number) or an event id
+   * ("event:<session>:<seq>") from the Events logger.
+   */
+  function subjectSections(id, ctx, gel) {
+    if (typeof id === 'string' && id.indexOf('event:') === 0) {
+      var rec = findEventRecord(id);
+      return rec ? { rec: rec, sections: eventSections(rec) } : null;
+    }
+    var el = lookup(id);
+    return el ? { el: el, sections: rawSections(el, ctx, gel) } : null;
+  }
+
+  function sectionValue(id, sectionKey, path, opts, gel) {
+    var subj = subjectSections(id, makeCtx(opts), gel);
+    if (!subj) return { ok: false };
+    if (!sectionKey) return { ok: true, value: subj.el || subj.rec.event };
+    var s = subj.sections.filter(function (x) { return x.key === sectionKey; })[0];
+    if (!s) return { ok: false };
+    return walkPath(s.root, path || []);
+  }
+
+  function serializeSections(raw, ctx) {
+    return raw.map(function (s) {
+      var out = {
+        key: s.key,
+        title: s.title,
+        editable: s.editable,
+        note: s.note || '',
+        collapsed: !!s.collapsed,
+        empty: !!s.empty
+      };
+      if (!s.empty) out.value = serialize(s.root, [], { expanded: ctx.expanded[s.key] || {}, autoDepth: 1 }, []);
+      return out;
+    });
+  }
+
   function parseValue(text) {
     if (text === 'undefined') return undefined;
     try {
@@ -1038,33 +1529,42 @@
       return { nodes: roots, count: ctx.count, truncated: ctx.truncated, url: location.href, title: document.title };
     },
 
-    inspect: function (id, opts) {
+    /**
+     * Describe a component (numeric id) or a logged event ("event:…" id).
+     * `gel` is DevTools' getEventListeners, when the caller can supply it.
+     */
+    inspect: function (id, opts, gel) {
+      var ctx = makeCtx(opts);
+      if (typeof id === 'string' && id.indexOf('event:') === 0) {
+        var rec = findEventRecord(id);
+        if (!rec) return { error: 'gone' };
+        var flags = [rec.cls];
+        if (rec.bubbles) flags.push('bubbles');
+        if (rec.composed) flags.push('composed');
+        if (rec.prevented) flags.push('defaultPrevented');
+        return {
+          id: id,
+          subject: 'event',
+          label: rec.type,
+          kinds: flags,
+          source: rec.sourceId && lookup(rec.sourceId) ? rec.sourceId : 0,
+          sourceLabel: rec.sourceLabel,
+          sections: serializeSections(eventSections(rec), ctx)
+        };
+      }
       var el = lookup(id);
       if (!el) return { error: 'gone' };
-      var ctx = makeCtx(opts);
       var ri = ctx.includeReact ? reactInfo(el) : null;
       var kinds = [];
       if (isCustomElementTag(el)) kinds.push(isDefined(el) ? 'Custom Element' : 'Undefined Custom Element');
       if (isCustomElementTag(el) && ctx.tagRe.test(el.localName)) kinds.push('ServiceNow');
+      if (isCustomElementTag(el) && litProperties(el)) kinds.push('Lit');
+      if (isCustomElementTag(el) && isAiuxElement(el)) kinds.push('AIUX');
       if (ri) kinds.push('React');
-      var sections = rawSections(el, ctx).map(function (s) {
-        var subCtx = {
-          expanded: (ctx.expanded[s.key] || {}),
-          autoDepth: 1
-        };
-        var out = {
-          key: s.key,
-          title: s.title,
-          editable: s.editable,
-          note: s.note || '',
-          collapsed: !!s.collapsed,
-          empty: !!s.empty
-        };
-        if (!s.empty) out.value = serialize(s.root, [], subCtx, []);
-        return out;
-      });
+      var sections = serializeSections(rawSections(el, ctx, gel), ctx);
       return {
         id: Number(id),
+        subject: 'component',
         tag: el.localName,
         label: isCustomElementTag(el) ? componentLabel(el) : (ri ? '<' + ri.name + '>' : nodePreview(el)),
         kinds: kinds,
@@ -1092,6 +1592,21 @@
           if (value === null || value === undefined) el.removeAttribute(path[0]);
           else el.setAttribute(path[0], typeof value === 'string' ? value : JSON.stringify(value));
           return { ok: true, method: 'setAttribute' };
+        }
+        if (sectionKey === 'state' && litProperties(el)) {
+          if (!path.length) return { ok: false, error: 'Select a state field' };
+          el[path[0]] = path.length === 1 ? value : immutableSet(el[path[0]], path.slice(1), value);
+          return { ok: true, method: 'host.' + path[0] + ' = …' };
+        }
+        if (sectionKey === 'config') {
+          if (!path.length) return { ok: false, error: 'Select a config field' };
+          el.aiuxConfigData = immutableSet(el.aiuxConfigData || {}, path, value);
+          return { ok: true, method: 'host.aiuxConfigData = {…}' };
+        }
+        if (sectionKey === 'aiux') {
+          if (path[0] !== 'data') return { ok: false, error: 'Only `data` is writable' };
+          el.data = path.length === 1 ? value : immutableSet(el.data, path.slice(1), value);
+          return { ok: true, method: 'host.data = …' };
         }
         if (sectionKey === 'state') {
           var st = findState(el, ctx);
@@ -1192,33 +1707,28 @@
       return lookup(id);
     },
 
-    /** Store a value on window as $aiuxN and return the name. */
-    storeGlobal: function (id, sectionKey, path, opts) {
-      var el = lookup(id);
-      if (!el) return null;
-      var value = el;
-      if (sectionKey) {
-        var ctx = makeCtx(opts);
-        var s = rawSections(el, ctx).filter(function (x) { return x.key === sectionKey; })[0];
-        if (!s) return null;
-        var r = walkPath(s.root, path || []);
-        if (!r.ok) return null;
-        value = r.value;
-      }
+    /**
+     * Store a value on window as $aiuxN and return the name. Without a
+     * section, stores the subject itself (host element or Event object).
+     */
+    storeGlobal: function (id, sectionKey, path, opts, gel) {
+      var r = sectionValue(id, sectionKey, path, opts, gel);
+      if (!r.ok) return null;
       var n = 1;
       while (('$aiux' + n) in window) n++;
-      window['$aiux' + n] = value;
+      window['$aiux' + n] = r.value;
       return '$aiux' + n;
     },
 
+    /** The raw value at a path (used to reveal a function's source). */
+    resolveValue: function (id, sectionKey, path, opts, gel) {
+      var r = sectionValue(id, sectionKey, path, opts, gel);
+      return r.ok ? r.value : undefined;
+    },
+
     /** Return a JSON string of a value (for "Copy value"). */
-    copyValue: function (id, sectionKey, path, opts) {
-      var el = lookup(id);
-      if (!el) return null;
-      var ctx = makeCtx(opts);
-      var s = rawSections(el, ctx).filter(function (x) { return x.key === sectionKey; })[0];
-      if (!s) return null;
-      var r = walkPath(s.root, path || []);
+    copyValue: function (id, sectionKey, path, opts, gel) {
+      var r = sectionValue(id, sectionKey, path, opts, gel);
       if (!r.ok) return null;
       var seen = [];
       try {
@@ -1239,7 +1749,52 @@
       }
     },
 
+    /** Declared events per tag, generated from @servicenow/aiux (data/aiux-events.json). */
+    setCatalog: function (c) {
+      catalog = c && c.tags ? c : null;
+      return catalog ? Object.keys(catalog.tags).length : 0;
+    },
+
+    startEventCapture: function (opts) {
+      opts = opts || {};
+      capture.mode = opts.eventMode === 'all' ? 'all' : 'components';
+      capture.ctx = makeCtx(opts);
+      capture.active = true;
+      patchAllFrames(window);
+      return captureStatus();
+    },
+
+    stopEventCapture: function () {
+      capture.active = false;
+      unpatchAll();
+      return captureStatus();
+    },
+
+    clearEvents: function () {
+      capture.events = [];
+      return captureStatus();
+    },
+
+    /** Logged events with seq > since (at most 500 per call). */
+    getEvents: function (since) {
+      if (capture.active) patchAllFrames(window); // pick up iframes added since
+      since = Number(since) || 0;
+      var out = [];
+      var list = capture.events;
+      for (var i = 0; i < list.length && out.length < 500; i++) {
+        if (list[i].seq > since) out.push(eventSummary(list[i]));
+      }
+      var status = captureStatus();
+      status.events = out;
+      status.dropped = Math.max(0, capture.trimmedTo - since);
+      return status;
+    },
+
+    eventStatus: captureStatus,
+
     dispose: function () {
+      capture.active = false;
+      unpatchAll();
       stopPick();
       if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
       overlay = null;

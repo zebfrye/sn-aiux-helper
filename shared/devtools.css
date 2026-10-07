@@ -58,6 +58,7 @@ button {
   border-radius: 3px;
   padding: 1px 8px;
   cursor: pointer;
+  white-space: nowrap;
 }
 button:hover { border-color: var(--accent); }
 button.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }

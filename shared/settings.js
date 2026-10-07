@@ -12,7 +12,9 @@
     includeReact: true,
     statePaths: [],
     live: true,
-    pollMs: 1000
+    pollMs: 1000,
+    eventMode: 'components',
+    preserveLog: false
   };
 
   function load() {
@@ -31,6 +33,13 @@
     }
   }
 
+  /** Merge `patch` into the stored settings (other pages' keys are kept). */
+  function update(patch) {
+    const next = Object.assign(load(), patch);
+    save(next);
+    return next;
+  }
+
   /** Options passed to the agent for every call. */
   function agentOptions(settings, extra) {
     return Object.assign(
@@ -38,11 +47,12 @@
         tagPattern: settings.tagPattern,
         allCustomElements: settings.allCustomElements,
         includeReact: settings.includeReact,
-        statePaths: settings.statePaths
+        statePaths: settings.statePaths,
+        eventMode: settings.eventMode
       },
       extra || {}
     );
   }
 
-  global.AiuxSettings = { DEFAULTS, load, save, agentOptions };
+  global.AiuxSettings = { DEFAULTS, load, save, update, agentOptions };
 })(window);

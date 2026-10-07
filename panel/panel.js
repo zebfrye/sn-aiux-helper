@@ -1,5 +1,6 @@
 /*
- * AIUX DevTools panel: component tree (left) + details inspector (right).
+ * AIUX DevTools panel — Components tab: component tree (left) + details
+ * inspector (right). The Events tab lives in events.js.
  */
 (function () {
   'use strict';
@@ -264,7 +265,7 @@
     pollTimer = null;
     if (!settings.live) return;
     pollTimer = setInterval(() => {
-      if (document.hidden) return;
+      if (document.hidden || document.body.dataset.tab !== 'components') return;
       details.refresh(false);
       // Rebuilding the tree walks the whole DOM, so do it less often.
       if (++treeTick % 3 === 0) loadTree(true);
@@ -273,8 +274,7 @@
 
   $('live').checked = !!settings.live;
   $('live').addEventListener('change', () => {
-    settings.live = $('live').checked;
-    Settings.save(settings);
+    settings = Settings.update({ live: $('live').checked });
     schedule();
   });
 
@@ -304,14 +304,15 @@
       setStatus('Invalid RegExp: ' + err.message, true);
       return;
     }
-    settings.tagPattern = pattern;
-    settings.allCustomElements = $('allCustomElements').checked;
-    settings.includeReact = $('includeReact').checked;
-    settings.statePaths = $('statePaths')
-      .value.split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    Settings.save(settings);
+    settings = Settings.update({
+      tagPattern: pattern,
+      allCustomElements: $('allCustomElements').checked,
+      includeReact: $('includeReact').checked,
+      statePaths: $('statePaths')
+        .value.split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    });
     treeSig = '';
     loadTree(false);
     details.refresh(true);
@@ -365,6 +366,32 @@
     }
   });
 
+  // ---------------------------------------------------------------------------
+  // Tabs
+  // ---------------------------------------------------------------------------
+
+  function showTab(name) {
+    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+    document.querySelectorAll('.tab-page').forEach((p) => p.classList.toggle('hidden', p.id !== 'tab-' + name));
+    document.body.dataset.tab = name;
+    document.dispatchEvent(new CustomEvent('aiux-panel:tab', { detail: name }));
+  }
+
+  document.querySelector('.tabs').addEventListener('click', (e) => {
+    const tab = e.target.closest('.tab');
+    if (tab) showTab(tab.dataset.tab);
+  });
+
+  // Used by the Events tab to jump to the component that dispatched an event.
+  window.AiuxPanel = {
+    selectComponent(id) {
+      showTab('components');
+      return select(id, { reveal: true });
+    },
+    agentOptions: opts
+  };
+
+  showTab('components');
   loadTree(false);
   schedule();
 })();

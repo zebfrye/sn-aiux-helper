@@ -30,12 +30,27 @@
             const w = inspected();
             w.$0 = window.parent.__aiuxMock.$0 || null;
             w.inspect = (el) => { window.parent.__aiuxMock.inspected = el; };
+            // DevTools-only Console Utilities; emulated by fixtures/listener-tracker.js.
+            w.getEventListeners = w.__testGetEventListeners;
             result = w.eval(expression);
             result = result === undefined ? undefined : JSON.parse(JSON.stringify(result));
           } catch (e) {
             exc = { isException: true, value: String(e && e.stack || e) };
           }
           setTimeout(() => callback(result, exc), 0);
+        },
+        // Reload the inspected iframe, running injectedScript before any page script.
+        async reload(options) {
+          const frame = window.parent.document.getElementById('inspected');
+          const url = new URL(frame.getAttribute('src') || frame.dataset.src, location.href).href;
+          frame.dataset.src = url;
+          let html = await (await fetch(url)).text();
+          const script = (options && options.injectedScript) || '';
+          const head = '<head><base href="' + url + '"><script>' + script.replace(/<\/script/gi, '<\\/script') + '<\/script>';
+          html = html.replace('<head>', () => head); // a function: the script contains `$'`
+          frame.addEventListener('load', () => navigateListeners.forEach((fn) => fn(url)), { once: true });
+          frame.removeAttribute('src');
+          frame.srcdoc = html;
         }
       },
       panels: {

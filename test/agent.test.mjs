@@ -79,10 +79,11 @@ async function chatId() {
   return nodes.find((n) => n.n.startsWith('now-aiux-chat')).id;
 }
 
-test('inspect a custom element: properties, state, attributes, internals', async () => {
+test('inspect a custom element: properties, state, events, attributes, internals', async () => {
   const data = await api('inspect', await chatId(), {});
   assert.deepEqual(data.kinds, ['Custom Element', 'ServiceNow']);
-  assert.deepEqual(data.sections.map((s) => s.key), ['properties', 'state', 'attributes', 'internals']);
+  assert.deepEqual(data.sections.map((s) => s.key), ['properties', 'state', 'events', 'attributes', 'internals']);
+  assert.equal(section(data, 'events').empty, true, 'no catalog entries and nothing recorded yet');
 
   const props = section(data, 'properties');
   assert.deepEqual(props.value.c.map((c) => c.k), ['config', 'heading', 'loading', 'messages']);

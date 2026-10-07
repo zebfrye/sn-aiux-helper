@@ -1,13 +1,16 @@
 # SN AIUX DevTools
 
-A Chrome DevTools extension for inspecting **ServiceNow AIUX / Next Experience components**: browse the component tree, then view and edit each component's **properties** and **state**, much like the Next Experience Dev Tools.
+A Chrome DevTools extension for inspecting **ServiceNow AIUX components** ([`@servicenow/aiux`](https://www.npmjs.com/package/@servicenow/aiux)). It works much like the Next Experience Dev Tools: browse the component tree, view and edit each component's **properties** and **state**, see the **events** it declares and the **listeners** registered on it, and watch events in a live **event logger**.
 
-![Panel](docs/panel.png)
+![Components tab](docs/panel.png)
 
 ## Features
 
-- **AIUX panel** (a new DevTools tab)
-  - A component tree that walks the light DOM, open **shadow roots** and same-origin **iframes**.
+- **AIUX panel** (a new DevTools tab), with two tabs:
+  - **Components**: the component tree and inspector (below).
+  - **Events**: a logger of the events components dispatch (see [Events logger](#events-logger)).
+- **Components tab**
+  - A component tree that walks the light DOM, open **shadow roots** and same-origin **iframes**. AIUX elements are always included, even when their tag doesn't match the tag pattern (e.g. `content-toolbar`).
   - **Pick** mode: click any component in the page to select it (Esc cancels).
   - Hovering a tree row highlights that component in the page. You can filter the tree, and use the arrow keys to move through it.
   - **Live** mode polls the selected component and briefly highlights values that change.
@@ -16,8 +19,12 @@ A Chrome DevTools extension for inspecting **ServiceNow AIUX / Next Experience c
 
   | Section | Source | Editable |
   |---|---|---|
-  | **Properties** | Declared props: `static properties` / `componentConfig.properties`, `observedAttributes`, and getters/setters on the component class | ✅ assigns `host[prop] = value` (nested edits copy the objects along the path, so frameworks that compare by reference see a change) |
-  | **State** | The host's state object (see [State discovery](#state-discovery)) | ✅ through `updateState`/`setState`/`patchState` if one is found next to the state, otherwise by mutating the object in place |
+  | **Properties** | AIUX/Lit components: Lit's registry of reactive properties (`static elementProperties`), excluding `@state` fields. Other components: `static properties` / `componentConfig.properties`, `observedAttributes`, and getters/setters on the class | ✅ assigns `host[prop] = value` (nested edits copy the objects along the path, so components that compare by reference see a change) |
+  | **State** | AIUX/Lit components: the `@state()` fields. Other components: the host's state object (see [State discovery](#state-discovery)) | ✅ Lit: assigns the field, which re-renders. Others: through `updateState`/`setState`/`patchState` if one is found, otherwise by mutating the object in place |
+  | **Config** | AIUX `@config` fields (from `configSchema`) | ✅ writes `aiuxConfigData` |
+  | **Events** | Events the component **declares** (`@fires` in the `@servicenow/aiux` sources) and events it actually **dispatched** while recording, with counts and last time. Undeclared events are flagged | read-only |
+  | **Event listeners** | Listeners registered on the host and its shadow root (from DevTools' `getEventListeners`). Click **{}** on a listener to open its source | read-only |
+  | **AIUX** | `AIUXElement` data: `data`, `loaderData`, `serverScriptData`, `loaderScopeKey`, `isEmbedded`, `static capabilities` | ✅ `data` only |
   | **React props / hooks / state** | For AIUX surfaces built with React: the nearest component fiber's props, hook list (State, Memo, Ref, Effect…) and class state | ✅ `useState` hooks (through their dispatcher) and class `setState` |
   | **Attributes** | DOM attributes | ✅ (`null` removes the attribute) |
   | **Host internals** | Every own property of the host element, including non-enumerable and symbol keys | read-only |
@@ -25,6 +32,39 @@ A Chrome DevTools extension for inspecting **ServiceNow AIUX / Next Experience c
 - Values are loaded lazily as you expand them. Supported types include objects, arrays, Maps, Sets, Dates, functions, BigInts, Symbols, DOM nodes (click one to jump to it) and circular references.
 - Hover over any row to **copy it as JSON** (⧉) or **store it as a console global** (`$aiux1`, `$aiux2`, …). Header buttons reveal the host element in **Elements**, scroll it into view, or store it as a global.
 - Light and dark DevTools themes are supported.
+
+## Events logger
+
+![Events tab](docs/events.png)
+
+AIUX components fire plain DOM `CustomEvent`s from their host element, e.g. `aiux-checklist:item-clicked`, with `bubbles` and `composed` set. While you record, the extension wraps `EventTarget.prototype.dispatchEvent` in the page, including in same-origin iframes. That way it logs every dispatch before listeners run. The wrapper passes every call straight through, and the original is restored when you stop.
+
+- **● Record / ■ Stop.** Starts and stops logging. Recording carries on across navigations.
+- **↻ Reload & record.** Reloads the page with the recorder installed before any page script runs. Use it to catch events fired while the app boots.
+- **Component events / All dispatched events.** By default the log keeps events dispatched from inside a component, plus app-level `CustomEvent`s on `window`/`document`. *All* also keeps every other `dispatchEvent` call, such as internal event buses and plain DOM events.
+- **Filter.** Matches on event name and source component. Prefix a term with `-` to exclude it, e.g. `-focus`.
+- **Preserve log.** Keeps the log when the page navigates.
+- Selecting an event shows:
+  - its **Detail**: a snapshot taken at dispatch time, so later mutations don't change it;
+  - its source and target;
+  - whether the source component **declares** it via `@fires`;
+  - `bubbles`, `composed`, `cancelable`, `defaultPrevented` and `isTrusted`;
+  - how long its listeners took;
+  - which components it propagates through.
+- **⌖ <component>** jumps to the dispatching component in the Components tab, and **$ Store** saves the `Event` object as a console global.
+
+Native browser events, such as a real mouse click, aren't dispatched through `dispatchEvent`, so they aren't logged. The component events those clicks cause are.
+
+### Declared-events catalog
+
+`data/aiux-events.json` maps each component tag to the events it declares (`@fires` JSDoc and public API manifests). It is generated from the `@servicenow/aiux` package. To regenerate it for another version:
+
+```bash
+npm install --no-save @servicenow/aiux@<version>
+npm run catalog            # node scripts/build-event-catalog.mjs [path/to/@servicenow/aiux]
+```
+
+The script reads the package's sources as text and never executes them.
 
 ## Install (unpacked)
 
@@ -43,11 +83,11 @@ Double-click a value in an *editable* section. Type JSON (`42`, `true`, `"text"`
 - **Component tag pattern.** A regular expression for which custom elements count as components. Default: `^(now|sn|macroponent|uxf|x|aiux|ai|nas|sys|seismic)-`. `x-` covers scoped-app components such as `x-snc-…`.
 - **Show every custom element.** Ignore the pattern and list every tag that contains a hyphen.
 - **Detect React components.** Show React component boundaries in the tree, along with their props and hooks.
-- **Extra state paths.** Paths on the host element to check first when looking for state, e.g. `__myFramework.state` or `store.getState()` (`()` calls the function).
+- **Extra state paths.** Paths on the host element to check first when looking for state, e.g. `__myFramework.state` or `store.getState()` (`()` calls the function). Only used for non-Lit components.
 
 ## State discovery
 
-ServiceNow doesn't publish a stable API for reading a component's internal state, so the agent searches the host element for it. The **State** section's note tells you which path was used:
+For AIUX components, state is exact: Lit marks every `@state()` field in `elementProperties`. For other custom elements there's no standard way to read internal state, so the agent searches the host element for it. The **State** section's note tells you which path was used:
 
 1. Your *extra state paths*.
 2. Well-known slots: `state`, `__state`, `_state`, `componentState`, `__component.state`, `__internals.state`, `store.getState()`, `getState()`, …
@@ -59,13 +99,16 @@ If nothing is found, open **Host internals** to see where the framework keeps it
 ## Development
 
 ```bash
-npm install          # Playwright + React (used by the demo fixture)
-npm test             # agent unit tests + end-to-end panel/sidebar tests in headless Chromium
+npm install          # Playwright, Lit and React (used by the demo fixtures)
+npm test             # agent tests + end-to-end panel/sidebar/events tests in headless Chromium
 npm run lint
-npm run demo         # http://localhost:5173/test/harness.html
+npm run demo         # http://localhost:5173/test/harness.html?page=aiux
 ```
 
-`npm run demo` serves a harness that runs the **real** panel and sidebar against a demo page (`test/fixtures/demo.html`), with `chrome.devtools` mocked. The demo page has custom-element components and a React tree inside a shadow root, so you can work on the UI without a ServiceNow instance.
+`npm run demo` serves a harness that runs the **real** panel and sidebar against a fixture page, with `chrome.devtools` mocked, so you can work on the UI without a ServiceNow instance.
+
+- `?page=aiux` (`test/fixtures/aiux.html`) uses real Lit components on an `AIUXElement` look-alike. It has properties, `@state`, `@config`, `data` and `capabilities`, and it fires `CustomEvent`s.
+- The default page (`test/fixtures/demo.html`) has generic custom elements and a React tree inside a shadow root.
 
 ### Layout
 
@@ -73,12 +116,15 @@ npm run demo         # http://localhost:5173/test/harness.html
 manifest.json          MV3 manifest (devtools_page only, no permissions)
 devtools/              registers the AIUX panel and the Elements sidebar
 agent/agent.js         page-side agent, injected into the inspected page's main world
-shared/bridge.js       eval bridge; injects the agent lazily and again after navigation
-shared/details.js      properties/state inspector UI (shared by panel and sidebar)
+data/aiux-events.json  declared events per component, generated from @servicenow/aiux
+shared/bridge.js       eval bridge; injects the agent + catalog lazily and after navigation
+shared/details.js      inspector UI for components and events (shared by panel and sidebar)
 shared/settings.js     settings stored in the extension's localStorage
-panel/                 AIUX panel (tree + inspector)
+panel/panel.js         Components tab (tree + inspector) and tab switching
+panel/events.js        Events tab (logger)
 sidebar/               Elements-panel sidebar
-test/                  fixture page, chrome.devtools mock, harness, tests
+scripts/               icon and event-catalog generators
+test/                  fixture pages, chrome.devtools mock, harness, tests
 ```
 
 The agent's version must match `manifest.json`'s `version`; the tests check this. Bump both together.
@@ -86,5 +132,7 @@ The agent's version must match `manifest.json`'s `version`; the tests check this
 ## Limitations
 
 - Closed shadow roots and cross-origin iframes can't be inspected.
+- Events dispatched before you press Record aren't logged. Use **Reload & record** to capture page boot.
+- The declared-events catalog reflects the `@servicenow/aiux` version it was generated from (see `source` in `data/aiux-events.json`).
 - State edits made without an updater function change the object in place, so the component may not re-render until something else triggers a render.
 - `useReducer` state is read-only, because writing it would require sending a reducer action.

@@ -1,0 +1,1526 @@
+{
+ "source": "@servicenow/aiux@22.67.1",
+ "generatedBy": "scripts/build-event-catalog.mjs",
+ "tags": {
+  "ai-filter-assist": [
+   {
+    "name": "ai-filter-assist:encoded-query-generated",
+    "description": "Fired when a query is"
+   }
+  ],
+  "ai-filter-assist-history": [
+   {
+    "name": "ai-filter-assist-history:item-select",
+    "description": "Fired when a recent filter is"
+   }
+  ],
+  "aiux-360-degree-visualization": [
+   {
+    "name": "aiux-360-degree-visualization:carousel-navigate",
+    "description": "Carousel page changed"
+   },
+   {
+    "name": "aiux-360-degree-visualization:center-node-click",
+    "description": "Center entity name was clicked (only when enableNavigation is true)"
+   },
+   {
+    "name": "aiux-360-degree-visualization:node-click",
+    "description": "A node pill was clicked"
+   },
+   {
+    "name": "aiux-360-degree-visualization:selection-change",
+    "description": "Node selection toggled"
+   },
+   {
+    "name": "aiux-360-degree-visualization:view-all",
+    "description": "\"View all\" was activated for a sector"
+   }
+  ],
+  "aiux-announcement-banner": [
+   {
+    "name": "aiux-announcement:dismiss",
+    "description": "When the dismiss button is clicked; detail carries the sysId."
+   },
+   {
+    "name": "aiux-announcement:link-clicked",
+    "description": "When the action link is clicked; detail carries the url, newWindow flag, and userAction."
+   },
+   {
+    "name": "aiux-announcement:toggle-expanded",
+    "description": "When the stack is expanded or collapsed; detail carries the stackType."
+   }
+  ],
+  "aiux-attachment-notifications": [
+   {
+    "name": "attachment-notifications:dismiss",
+    "description": "detail: { id: number }"
+   }
+  ],
+  "aiux-audio-player": [
+   {
+    "name": "aiux-audio-player:ended"
+   },
+   {
+    "name": "aiux-audio-player:fast-forward"
+   },
+   {
+    "name": "aiux-audio-player:paused"
+   },
+   {
+    "name": "aiux-audio-player:playback-rate-changed"
+   },
+   {
+    "name": "aiux-audio-player:played"
+   },
+   {
+    "name": "aiux-audio-player:rewind"
+   },
+   {
+    "name": "aiux-audio-player:time-changed"
+   },
+   {
+    "name": "aiux-audio-player:volume-changed"
+   }
+  ],
+  "aiux-calendar-component": [
+   {
+    "name": "calendar-date-month-change",
+    "description": "Fired when the displayed month changes, detail: {month, year}"
+   },
+   {
+    "name": "calendar-date-select-date",
+    "description": "Fired when a date is selected, detail: ISO date string \"YYYY-MM-DD\""
+   }
+  ],
+  "aiux-checklist": [
+   {
+    "name": "aiux-checklist:all-items-deleted",
+    "detail": "ChecklistAllItemsDeletedDetail"
+   },
+   {
+    "name": "aiux-checklist:all-items-edited",
+    "detail": "ChecklistAllItemsEditedDetail"
+   },
+   {
+    "name": "aiux-checklist:all-items-selected",
+    "detail": "ChecklistAllItemsSelectedDetail"
+   },
+   {
+    "name": "aiux-checklist:item-added",
+    "detail": "ChecklistItemAddedDetail"
+   },
+   {
+    "name": "aiux-checklist:item-clicked",
+    "detail": "ChecklistItemClickedDetail"
+   },
+   {
+    "name": "aiux-checklist:item-deleted",
+    "detail": "ChecklistItemDeletedDetail"
+   },
+   {
+    "name": "aiux-checklist:item-edited",
+    "detail": "ChecklistItemEditedDetail"
+   },
+   {
+    "name": "aiux-checklist:item-link-clicked",
+    "detail": "ChecklistItemLinkClickedDetail"
+   },
+   {
+    "name": "aiux-checklist:list-reordered",
+    "detail": "ChecklistListReorderedDetail"
+   }
+  ],
+  "aiux-chrome-primary-items": [
+   {
+    "name": "chrome-tools:navigate",
+    "detail": "{ href: any; }"
+   }
+  ],
+  "aiux-code-editor": [
+   {
+    "name": "AIUX_CODE_EDITOR#CONTENT_CHANGED",
+    "description": "Fired when the editor content changes."
+   },
+   {
+    "name": "AIUX_CODE_EDITOR#FULLSCREEN_TOGGLED",
+    "description": "Fired when fullscreen mode is toggled."
+   },
+   {
+    "name": "AIUX_CODE_EDITOR#TEXT_EDITOR_FOCUS_CHANGED",
+    "description": "Fired when the editor gains or loses focus."
+   }
+  ],
+  "aiux-color-swatch": [
+   {
+    "name": "aiux-color-swatch:color-picker-closed",
+    "description": "Fired when the color picker is closed."
+   },
+   {
+    "name": "aiux-color-swatch:color-set",
+    "description": "Fired when a color is saved via the picker."
+   }
+  ],
+  "aiux-condition-builder": [
+   {
+    "name": "cb-encoded-query-updated",
+    "description": "Fired when the encoded query changes; detail carries the updated query."
+   }
+  ],
+  "aiux-contact-card": [
+   {
+    "name": "aiux-contact-card:item-clicked",
+    "description": "Dispatched when a clickable item is clicked."
+   }
+  ],
+  "aiux-control-auto-number-connected": [
+   {
+    "name": "AIUX_CONTROL_AUTO_NUMBER_CONNECTED#STAGED_VALUE_CHANGED",
+    "description": "User is typing."
+   },
+   {
+    "name": "AIUX_CONTROL_AUTO_NUMBER_CONNECTED#VALUE_CHANGED",
+    "description": "Committed value (user blur or successful generate)."
+   }
+  ],
+  "aiux-control-checkbox": [
+   {
+    "name": "AIUX_CONTROL_CHECKBOX#VALUE_CHANGED"
+   }
+  ],
+  "aiux-control-checkbox-group": [
+   {
+    "name": "AIUX_CONTROL_CHECKBOX_GROUP#VALUE_CHANGED"
+   }
+  ],
+  "aiux-control-date-picker": [
+   {
+    "name": "AIUX_CONTROL_DATE_PICKER#ON_BLUR"
+   },
+   {
+    "name": "AIUX_CONTROL_DATE_PICKER#ON_FOCUS"
+   },
+   {
+    "name": "AIUX_CONTROL_DATE_PICKER#STAGED_VALUE_CHANGED"
+   },
+   {
+    "name": "AIUX_CONTROL_DATE_PICKER#VALUE_CHANGED"
+   }
+  ],
+  "aiux-control-date-picker-core": [
+   {
+    "name": "AIUX_CONTROL_DATE_PICKER_CORE#DATE_SELECT",
+    "description": "Fired when a date is selected"
+   },
+   {
+    "name": "AIUX_CONTROL_DATE_PICKER_CORE#INPUT_CHANGE",
+    "description": "Fired when the input value changes"
+   },
+   {
+    "name": "AIUX_CONTROL_DATE_PICKER_CORE#MONTH_CHANGE",
+    "description": "Fired when the displayed month changes"
+   },
+   {
+    "name": "AIUX_CONTROL_DATE_PICKER_CORE#OPEN_CHANGE",
+    "description": "Fired when the dropdown opens or closes"
+   },
+   {
+    "name": "AIUX_CONTROL_DATE_PICKER_CORE#REQUEST_CLOSE",
+    "description": "Fired when the picker should close"
+   },
+   {
+    "name": "AIUX_CONTROL_DATE_PICKER_CORE#YEAR_CHANGE",
+    "description": "Fired when the displayed year changes"
+   }
+  ],
+  "aiux-control-document-id-connected": [
+   {
+    "name": "AIUX_CONTROL_DOCUMENT_ID_CONNECTED#VALUE_CHANGED",
+    "description": "User selected a record."
+   }
+  ],
+  "aiux-control-modal": [
+   {
+    "name": "AIUX_CONTROL_MODAL#CLOSED",
+    "description": "Fired when the modal closes."
+   },
+   {
+    "name": "AIUX_CONTROL_MODAL#FOOTER_ACTION",
+    "description": "Fired when a footer action button is clicked, with its index and action config."
+   },
+   {
+    "name": "AIUX_CONTROL_MODAL#OPENED",
+    "description": "Fired once when the modal opens."
+   },
+   {
+    "name": "AIUX_CONTROL_MODAL#RESIZED",
+    "description": "Fired (throttled) with the modal's width and height while resizing."
+   }
+  ],
+  "aiux-control-modeless-dialog": [
+   {
+    "name": "AIUX_CONTROL_MODELESS_DIALOG#CLOSE",
+    "description": "When close is requested (cancelable)"
+   },
+   {
+    "name": "AIUX_CONTROL_MODELESS_DIALOG#CLOSED",
+    "description": "After the dialog is hidden"
+   },
+   {
+    "name": "AIUX_CONTROL_MODELESS_DIALOG#MAXIMIZE",
+    "description": "When maximize/restore is toggled"
+   },
+   {
+    "name": "AIUX_CONTROL_MODELESS_DIALOG#MINIMIZE",
+    "description": "When minimize is requested (cancelable)"
+   },
+   {
+    "name": "AIUX_CONTROL_MODELESS_DIALOG#OPENED",
+    "description": "After the dialog becomes visible"
+   },
+   {
+    "name": "AIUX_CONTROL_MODELESS_DIALOG#RESIZE_END",
+    "description": "After a resize interaction ends"
+   }
+  ],
+  "aiux-control-number": [
+   {
+    "name": "AIUX_CONTROL_NUMBER#STAGED_VALUE_CHANGED",
+    "description": "Debounced while typing, with the parsed value, raw display value, and any parse error."
+   },
+   {
+    "name": "AIUX_CONTROL_NUMBER#VALUE_CHANGED",
+    "description": "Fired on blur with the committed value, formatted display value, and any error."
+   }
+  ],
+  "aiux-control-order-index": [
+   {
+    "name": "AIUX_CONTROL_ORDER_INDEX#STAGED_VALUE_CHANGED",
+    "description": "Fired while typing, with the parsed integer value and raw display value."
+   },
+   {
+    "name": "AIUX_CONTROL_ORDER_INDEX#VALUE_CHANGED",
+    "description": "Fired on commit when the normalized value changes, with the integer value and display value."
+   }
+  ],
+  "aiux-control-phone-connected": [
+   {
+    "name": "AIUX_CONTROL_PHONE_CONNECTED#STAGED_VALUE_CHANGED",
+    "description": "Dispatched during input (debounced)"
+   },
+   {
+    "name": "AIUX_CONTROL_PHONE_CONNECTED#VALUE_CHANGED",
+    "description": "Dispatched on blur with validated phone data"
+   }
+  ],
+  "aiux-control-radio-group": [
+   {
+    "name": "AIUX_CONTROL_RADIO_GROUP#VALUE_CHANGED"
+   }
+  ],
+  "aiux-control-template-value": [
+   {
+    "name": "AIUX_CONTROL_TEMPLATE_VALUE#VALUE_CHANGED"
+   }
+  ],
+  "aiux-control-url": [
+   {
+    "name": "AIUX_CONTROL_URL#STAGED_VALUE_CHANGED"
+   },
+   {
+    "name": "AIUX_CONTROL_URL#VALUE_CHANGED"
+   }
+  ],
+  "aiux-control-wiki-text-connected": [
+   {
+    "name": "AIUX_CONTROL_WIKI_TEXT#STAGED_VALUE_CHANGED",
+    "description": "— on textarea input (inline mode)"
+   },
+   {
+    "name": "AIUX_CONTROL_WIKI_TEXT#VALUE_CHANGED",
+    "description": "— on submit (modal) or change (inline)"
+   }
+  ],
+  "aiux-dashboard-config-widget-selector": [
+   {
+    "name": "dashboard-config:selector-close",
+    "description": "Fired when the selector is closed"
+   },
+   {
+    "name": "dashboard-config:widgets-selected",
+    "description": "Fired when widgets are added, with detail: { widgets }"
+   }
+  ],
+  "aiux-dashboard-props-pane": [
+   {
+    "name": "close",
+    "description": "Fired when the pane is closed"
+   },
+   {
+    "name": "delete-widget",
+    "description": "Fired when delete button is clicked, with detail: { itemId }"
+   },
+   {
+    "name": "props-changed",
+    "description": "Fired when a property value changes, with detail: { itemId, properties }"
+   },
+   {
+    "name": "validation-state-changed",
+    "description": "Fired when validation state changes, with detail: { hasErrors, errors }"
+   }
+  ],
+  "aiux-dashboard-user-preview": [
+   {
+    "name": "dashboard-config:exit-preview",
+    "description": "Fired when the exit button is clicked"
+   },
+   {
+    "name": "dashboard-config:role-selected",
+    "description": "Fired when a role is selected, with detail: { role }"
+   },
+   {
+    "name": "dashboard-config:user-selected",
+    "description": "Fired when a user is selected, with detail: { user }"
+   }
+  ],
+  "aiux-dashboard-widget-selector": [
+   {
+    "name": "widget-selector:close",
+    "description": "Fired when the selector is closed"
+   },
+   {
+    "name": "widget-selector:widgets-selected",
+    "description": "Fired when widgets are added, with detail: { widgets }"
+   }
+  ],
+  "aiux-date-range-picker": [
+   {
+    "name": "date-filter-apply",
+    "description": "When a range is applied; detail `{start, end, dynamicTimeRange}`."
+   },
+   {
+    "name": "date-filter-clear",
+    "description": "When the selected range is cleared."
+   }
+  ],
+  "aiux-dot-walk": [
+   {
+    "name": "dw-load-more",
+    "description": "User clicked \"Load more\". Detail:"
+   },
+   {
+    "name": "dw-panel-request",
+    "description": "Element needs items for a panel (initial mount,"
+   },
+   {
+    "name": "dw-path-updated",
+    "description": "User finalized a field selection. Detail:"
+   }
+  ],
+  "aiux-email-client-response-template-dropdown": [
+   {
+    "name": "response-template-dropdown:hover",
+    "description": "A suggestion was hovered (detail: index)"
+   },
+   {
+    "name": "response-template-dropdown:pointer-move",
+    "description": "The pointer moved over the list"
+   },
+   {
+    "name": "response-template-dropdown:select",
+    "description": "A suggestion was chosen (detail: index)"
+   }
+  ],
+  "aiux-filter-bar": [
+   {
+    "name": "aiux-filter-bar:remove",
+    "description": "A removable pill was dismissed."
+   },
+   {
+    "name": "aiux-filter-bar:search",
+    "description": "The user typed in a `search: 'remote'` panel."
+   },
+   {
+    "name": "aiux-filter-bar:value-change",
+    "description": "A control's value was committed."
+   }
+  ],
+  "aiux-flyout-menu": [
+   {
+    "name": "flyout-menu:item-clicked",
+    "description": "Dispatched when a user clicks on a flyout menu item"
+   },
+   {
+    "name": "flyout-menu:list-hidden",
+    "description": "Dispatched when the flyout menu is fully removed from the DOM"
+   },
+   {
+    "name": "flyout-menu:list-visible",
+    "description": "Dispatched when the flyout menu is fully rendered to the DOM"
+   },
+   {
+    "name": "flyout-menu:selected-items-set",
+    "description": "Dispatched when selection changes"
+   }
+  ],
+  "aiux-flyout-menu-list": [
+   {
+    "name": "flyout-menu-list:active-item-set",
+    "description": "Dispatched when active item changes"
+   },
+   {
+    "name": "flyout-menu-list:input-type-change",
+    "description": "Dispatched when input type switches between keyboard/mouse"
+   },
+   {
+    "name": "flyout-menu-list:item-clicked",
+    "description": "Dispatched when user clicks a menu item"
+   },
+   {
+    "name": "flyout-menu-list:opened-set",
+    "description": "Dispatched when opened state should change. Detail includes {value: boolean, closeParents: boolean}. When closeParents is true, all parent menus should also close."
+   },
+   {
+    "name": "flyout-menu-list:selected-items-set",
+    "description": "Dispatched when selection changes"
+   }
+  ],
+  "aiux-gallery-list": [
+   {
+    "name": "aiux-gallery-list:card-deselected",
+    "description": "Fired when empty grid space is clicked (use to clear selection)"
+   },
+   {
+    "name": "aiux-gallery-list:card-selected",
+    "description": "Fired when a card body is clicked (outside interactive elements), detail: {row, columns}"
+   },
+   {
+    "name": "aiux-gallery-list:cell-link-clicked",
+    "description": "Fired when a heading link is clicked, detail: {row, columns, columnKey, cellData}"
+   },
+   {
+    "name": "aiux-gallery-list:context-action-clicked",
+    "description": "Fired when an action button is clicked"
+   },
+   {
+    "name": "aiux-gallery-list:group-toggle",
+    "description": "Fired when a group chevron is clicked, detail: {groupKey}"
+   }
+  ],
+  "aiux-guidance-modal": [
+   {
+    "name": "aiux-guidance-modal:close",
+    "description": "Detail: `{ reason: 'escape' | 'backdrop' | 'close-button' | 'stop' }`."
+   },
+   {
+    "name": "aiux-guidance-modal:footer-action",
+    "description": "Detail: `{ label, value, variant, index }`."
+   },
+   {
+    "name": "aiux-guidance-modal:onboarding-complete",
+    "description": "The onboarding step was"
+   }
+  ],
+  "aiux-horizontal-nav": [
+   {
+    "name": "horizontal-nav:favorite-toggle",
+    "description": "`{ currentlyFavorited }` when the pill's favorite star is toggled.",
+    "detail": "{ currentlyFavorited: boolean; anchorEl: any; }"
+   },
+   {
+    "name": "horizontal-nav:menu-tray-open",
+    "description": "`{ menuId }` when a main-menu tray button is pressed.",
+    "detail": "{ menuId: any; triggerLeft: any; triggerBottom: any; }"
+   },
+   {
+    "name": "horizontal-nav:utility-action",
+    "description": "`{ action: 'scope-picker' | 'chat' }` when a utility button is pressed.",
+    "detail": "{ action: any; }"
+   }
+  ],
+  "aiux-keyboard-shortcuts-modal": [
+   {
+    "name": "keyboard-shortcuts-modal:close",
+    "description": "Bubbles + composed. Parent should flip its `open`."
+   },
+   {
+    "name": "keyboard-shortcuts-modal:edit-request",
+    "detail": "{ shortcut: any; }"
+   },
+   {
+    "name": "keyboard-shortcuts-modal:overrides-changed"
+   }
+  ],
+  "aiux-list": [
+   {
+    "name": "aiux-list:cell-double-clicked",
+    "description": "Fired when a data cell is double-clicked and listConfig.cellEditingManaged is true"
+   },
+   {
+    "name": "aiux-list:cell-edit-submitted",
+    "description": "Fired when the user confirms a cell edit (managed and unmanaged); popover is already closed at this point"
+   },
+   {
+    "name": "GROUP_SHOW_ALL",
+    "description": "Fired when \"show all\" is clicked on a group"
+   },
+   {
+    "name": "GROUP_TOGGLE",
+    "description": "Fired when a group expand/collapse chevron is clicked"
+   }
+  ],
+  "aiux-list-aggregate-picker-connected": [
+   {
+    "name": "aiux-list-aggregate-picker:apply",
+    "description": "user confirmed (Apply)"
+   },
+   {
+    "name": "aiux-list-aggregate-picker:cancel",
+    "description": "user dismissed (Cancel/ESC/backdrop)"
+   },
+   {
+    "name": "LIST_CONTROLLER#AGGREGATE_PICKER_TOGGLE",
+    "description": "{columnKey, fn} on each toggle"
+   }
+  ],
+  "aiux-list-cell-editor-boolean": [
+   {
+    "name": "aiux-list-cell-editor:submitted",
+    "description": "Emitted when the user presses Enter."
+   },
+   {
+    "name": "aiux-list-cell-editor:value-changed",
+    "description": "Emitted on selection change with"
+   }
+  ],
+  "aiux-list-cell-editor-datetime": [
+   {
+    "name": "aiux-list-cell-editor:value-changed",
+    "description": "Emitted when the picker value"
+   }
+  ],
+  "aiux-list-cell-editor-encrypted": [
+   {
+    "name": "aiux-list-cell-editor:submitted",
+    "description": "Emitted when the user presses Enter"
+   },
+   {
+    "name": "aiux-list-cell-editor:value-changed",
+    "description": "Emitted on every keystroke with"
+   }
+  ],
+  "aiux-list-cell-editor-field-name": [
+   {
+    "name": "aiux-list-cell-editor:submitted",
+    "description": "On Enter when the focused"
+   },
+   {
+    "name": "aiux-list-cell-editor:value-changed",
+    "description": "On every value change to"
+   }
+  ],
+  "aiux-list-cell-editor-html": [
+   {
+    "name": "aiux-list-cell-editor:value-changed",
+    "description": "`{ value, displayValue, isDirty }`."
+   }
+  ],
+  "aiux-list-cell-editor-integer": [
+   {
+    "name": "aiux-list-cell-editor:submitted",
+    "description": "On Enter when dirty AND valid."
+   },
+   {
+    "name": "aiux-list-cell-editor:value-changed",
+    "description": "On every value change. Includes"
+   }
+  ],
+  "aiux-list-cell-editor-password": [
+   {
+    "name": "aiux-list-cell-editor:submitted",
+    "description": "Emitted when the user presses Enter."
+   },
+   {
+    "name": "aiux-list-cell-editor:value-changed",
+    "description": "Emitted on every keystroke with"
+   }
+  ],
+  "aiux-list-cell-editor-percent-complete": [
+   {
+    "name": "aiux-list-cell-editor:submitted",
+    "description": "On Enter when dirty AND valid."
+   },
+   {
+    "name": "aiux-list-cell-editor:value-changed",
+    "description": "On every value change. Includes"
+   }
+  ],
+  "aiux-list-cell-editor-string": [
+   {
+    "name": "aiux-list-cell-editor:submitted",
+    "description": "Emitted when the user presses Enter"
+   },
+   {
+    "name": "aiux-list-cell-editor:value-changed",
+    "description": "Emitted on every keystroke with"
+   }
+  ],
+  "aiux-list-cell-editor-table-name": [
+   {
+    "name": "aiux-list-cell-editor:submitted",
+    "description": "On Enter when dirty AND a"
+   },
+   {
+    "name": "aiux-list-cell-editor:value-changed",
+    "description": "On every value change."
+   }
+  ],
+  "aiux-list-cell-editor-tags-connected": [
+   {
+    "name": "aiux-list-cell-editor-tags-connected:view-records",
+    "description": "Apply the tag filter."
+   },
+   {
+    "name": "aiux-list-cell-editor:submitted",
+    "description": "Emitted only to close the popover after"
+   },
+   {
+    "name": "aiux-list-cell-editor:value-changed",
+    "description": "Emitted after each staged add/remove."
+   }
+  ],
+  "aiux-list-choice-menu": [
+   {
+    "name": "aiux-list-choice-menu:close",
+    "description": "Dispatched to signal the popover should dismiss"
+   },
+   {
+    "name": "aiux-list:choice-selected",
+    "description": "Dispatched when a choice is clicked"
+   }
+  ],
+  "aiux-list-context-menu": [
+   {
+    "name": "aiux-context-menu:action-clicked",
+    "description": "An action item was clicked."
+   },
+   {
+    "name": "aiux-context-menu:close",
+    "description": "The menu requested to be closed"
+   },
+   {
+    "name": "aiux-context-menu:submenu-back",
+    "description": "ArrowLeft was pressed in a"
+   }
+  ],
+  "aiux-list-page": [
+   {
+    "name": "load-complete",
+    "description": "Fired when data loading completes (detail.response = raw GQL data)"
+   },
+   {
+    "name": "load-error",
+    "description": "Fired when data loading fails"
+   },
+   {
+    "name": "load-start",
+    "description": "Fired when data loading starts"
+   }
+  ],
+  "aiux-list-record-preview": [
+   {
+    "name": "aiux-list-record-preview:close",
+    "description": "Dispatched on Cancel, Open Record, or Escape"
+   }
+  ],
+  "aiux-list-row-menu": [
+   {
+    "name": "aiux-list-row-menu:close",
+    "description": "Dispatched to signal the popover should dismiss"
+   },
+   {
+    "name": "aiux-list:context-action-clicked",
+    "description": "Dispatched when an enabled menu item is clicked"
+   }
+  ],
+  "aiux-list-selector": [
+   {
+    "name": "aiux-list-selector:item-expand-requested",
+    "description": "When a reference field is expanded; in manual"
+   },
+   {
+    "name": "aiux-list-selector:item-selected",
+    "description": "When a single item is selected or deselected."
+   },
+   {
+    "name": "aiux-list-selector:scrolled-to-bottom",
+    "description": "When a panel is scrolled within 100 px of its"
+   },
+   {
+    "name": "aiux-list-selector:search-term-set",
+    "description": "When the search input changes; detail carries the"
+   },
+   {
+    "name": "aiux-list-selector:selected-items-change",
+    "description": "When the set of selected items changes."
+   }
+  ],
+  "aiux-list-split-view-panel": [
+   {
+    "name": "SPLIT_VIEW_PANEL#CLOSE_BUTTON_CLICKED",
+    "description": "Close button or Escape"
+   },
+   {
+    "name": "SPLIT_VIEW_PANEL#EXPAND_BUTTON_CLICKED",
+    "description": "Expand button, requests the full record page"
+   },
+   {
+    "name": "SPLIT_VIEW_PANEL#NAVIGATE_NEXT_CLICKED",
+    "description": "Next button or ArrowDown"
+   },
+   {
+    "name": "SPLIT_VIEW_PANEL#NAVIGATE_PREV_CLICKED",
+    "description": "Prev button or ArrowUp"
+   },
+   {
+    "name": "SPLIT_VIEW_PANEL#SAVE_SUCCESS",
+    "description": "Dispatched when the record form saves successfully"
+   }
+  ],
+  "aiux-nacm-open-prompt": [
+   {
+    "name": "aiux-nacm-open-prompt:item-selected"
+   },
+   {
+    "name": "aiux-nacm-open-prompt:submit"
+   },
+   {
+    "name": "aiux-nacm-open-prompt:value-changed"
+   }
+  ],
+  "aiux-nav-help-panel": [
+   {
+    "name": "aiux-ha:start-guidance",
+    "detail": "{ src: any; }"
+   },
+   {
+    "name": "nav-help-panel:hidden"
+   },
+   {
+    "name": "nav-help-panel:shown"
+   }
+  ],
+  "aiux-nav-sidebar": [
+   {
+    "name": "aiux-navigate",
+    "detail": "{ path: string; }"
+   },
+   {
+    "name": "aiux:kbs-favorite-current-page"
+   },
+   {
+    "name": "aiux:kbs-instance-toolbar"
+   },
+   {
+    "name": "nav-app-group-toggle-collapse",
+    "detail": "{ groupId: any; }"
+   },
+   {
+    "name": "nav-item-click",
+    "detail": "{ item: { action: { type: string; name: any; }; }; }"
+   },
+   {
+    "name": "nav-section-reorder",
+    "detail": "{ draggedSection: any; targetSection: any; position: any; newOrder: any; }"
+   },
+   {
+    "name": "nav-sidebar:menu-tray-changed",
+    "detail": "{ menuId: any; }"
+   },
+   {
+    "name": "nav-tabs-reordered",
+    "detail": "{ tabs: any; }"
+   },
+   {
+    "name": "nav-tabs-toggle-collapse"
+   },
+   {
+    "name": "nav:favorite-edit-modal-requested"
+   },
+   {
+    "name": "nav:menu-data-updated"
+   },
+   {
+    "name": "sidebar-toggle",
+    "detail": "{ collapsed: boolean; }"
+   },
+   {
+    "name": "workspace-bridge-load-viewport",
+    "detail": "{ experienceId: any; id: any; label: any; group: any; routeInfo: any; viewportInfo: any; }"
+   },
+   {
+    "name": "workspace-bridge-navigate",
+    "detail": "{ path: string; }"
+   }
+  ],
+  "aiux-node-map": [
+   {
+    "name": "aiux-node-map:canvas-tap",
+    "description": "When the canvas background is clicked"
+   },
+   {
+    "name": "aiux-node-map:context-action",
+    "description": "When a context menu item is clicked; detail: `{ item: ContextMenuItem, elementId: string, elementType: 'node' | 'edge' }`"
+   },
+   {
+    "name": "aiux-node-map:edge-click",
+    "description": "When an edge is clicked"
+   },
+   {
+    "name": "aiux-node-map:node-action",
+    "description": "When a click lands inside a custom renderer's action zone; detail: `{ node: NodeData, actionId: string, actionLabel: string }`"
+   },
+   {
+    "name": "aiux-node-map:node-click",
+    "description": "When a node is clicked"
+   },
+   {
+    "name": "aiux-node-map:node-focused",
+    "description": "When a node gains hover or keyboard focus (mouse hover or Tab navigation); detail: `{ node: NodeData }`"
+   },
+   {
+    "name": "aiux-node-map:node-mouseout",
+    "description": "When the mouse leaves a node"
+   },
+   {
+    "name": "aiux-node-map:node-mouseover",
+    "description": "When the mouse enters a node; detail: `{ node: NodeData }`"
+   },
+   {
+    "name": "aiux-node-map:node-unfocused",
+    "description": "When a node loses hover or keyboard focus; detail: `{ node: NodeData }`"
+   },
+   {
+    "name": "aiux-node-map:selection-changed",
+    "description": "When the selection state changes; detail: `{ nodes: string[], edges: string[] }`"
+   },
+   {
+    "name": "aiux-node-map:zoom-change",
+    "description": "When the zoom level changes; detail: `{ zoom: number, baselineZoom: number }`"
+   }
+  ],
+  "aiux-pagination": [
+   {
+    "name": "AIUX_PAGINATION#PAGE_CHANGED",
+    "detail": "'AIUX_PAGINATION#PAGE_CHANGED'",
+    "description": "Fired when the user navigates to a different page. Detail contains `{value: number}` with the new 0-based page index."
+   },
+   {
+    "name": "AIUX_PAGINATION#PAGE_SIZE_CHANGED",
+    "detail": "'AIUX_PAGINATION#PAGE_SIZE_CHANGED'",
+    "description": "Fired when the user changes the page size. Detail contains `{value: number}` with the new page size. Note: This also triggers a page change to index 0."
+   }
+  ],
+  "aiux-playbook-actions": [
+   {
+    "name": "playbook-internal:execute-action",
+    "description": "When a playbook DA is clicked"
+   }
+  ],
+  "aiux-playbook-activity-picker": [
+   {
+    "name": "playbook:select",
+    "description": "When a stage or activity is clicked"
+   }
+  ],
+  "aiux-playbook-activity-viewer": [
+   {
+    "name": "activity-action",
+    "description": "Forwarded from playbook-card when an operation"
+   }
+  ],
+  "aiux-playbook-context-selector": [
+   {
+    "name": "playbook-internal:select",
+    "description": "When a different playbook context is"
+   }
+  ],
+  "aiux-playbook-item-picker": [
+   {
+    "name": "aiux-item-picker:select-item",
+    "description": "When an item or an item's alt row is"
+   }
+  ],
+  "aiux-playbook-stage-actions": [
+   {
+    "name": "playbook-internal:execute-action",
+    "description": "When a stage DA is clicked"
+   }
+  ],
+  "aiux-playbook-stage-picker": [
+   {
+    "name": "playbook:select",
+    "description": "When a stage is clicked"
+   }
+  ],
+  "aiux-playbook-stepper": [
+   {
+    "name": "stepper:activity-select",
+    "description": "When an activity is clicked. detail: { itemId, activityContextId }"
+   },
+   {
+    "name": "stepper:item-select",
+    "description": "When a stage is clicked. detail: { itemId }"
+   }
+  ],
+  "aiux-playbook-vertical-selector": [
+   {
+    "name": "playbook:select",
+    "description": "When a stage or activity is clicked"
+   }
+  ],
+  "aiux-playbook-wizard-stepper": [
+   {
+    "name": "playbook-internal:stepper-item-select",
+    "description": "When a step is activated. detail: { itemId }"
+   }
+  ],
+  "aiux-record-core-attachment-card": [
+   {
+    "name": "checkbox-changed",
+    "description": "Checkbox state change"
+   },
+   {
+    "name": "delete-clicked",
+    "description": "Delete action"
+   },
+   {
+    "name": "download-clicked",
+    "description": "Download action"
+   },
+   {
+    "name": "preview-clicked",
+    "description": "Card body click (thumbnail / name area)"
+   },
+   {
+    "name": "rename-submit",
+    "description": "Rename confirmed"
+   }
+  ],
+  "aiux-record-core-attachment-upload": [
+   {
+    "name": "upload-cancel",
+    "description": "When upload is cancelled"
+   },
+   {
+    "name": "upload-confirm",
+    "description": "When upload is confirmed with file list"
+   }
+  ],
+  "aiux-resizable-pane-group": [
+   {
+    "name": "aiux-resizable-pane-group:layout-changed",
+    "description": "One committed layout change"
+   }
+  ],
+  "aiux-sn-feedback": [
+   {
+    "name": "feedback-clicked",
+    "description": "When a thumbs button is clicked; detail `{button, isSelected}`."
+   },
+   {
+    "name": "granular-feedback-submit-clicked",
+    "description": "When the feedback form is submitted; detail `{items}`."
+   }
+  ],
+  "aiux-sn-honeycomb": [
+   {
+    "name": "aiux-sn-honeycomb:chart-error",
+    "description": "Dispatched when chart rendering fails."
+   }
+  ],
+  "aiux-sn-popover": [
+   {
+    "name": "aiux-sn-popover:close-request",
+    "description": "`{ actionSource: CloseActionSource }` — Cancelable request to close. Call `preventDefault()` to control `opened` externally."
+   },
+   {
+    "name": "aiux-sn-popover:closed",
+    "description": "`{ actionSource: CloseActionSource }` — after panel is removed"
+   },
+   {
+    "name": "aiux-sn-popover:open-request",
+    "description": "Cancelable request to open the popover. Call `preventDefault()` to control `opened` externally."
+   },
+   {
+    "name": "aiux-sn-popover:opened",
+    "description": "`{ placement: string }` — after panel is positioned"
+   }
+  ],
+  "aiux-tab-group": [
+   {
+    "name": "aiux-tab-group:tab-change",
+    "description": "Fired when active tab changes, event.detail contains {id, label, index, previousTab}"
+   },
+   {
+    "name": "tab-change",
+    "description": "(DEPRECATED) Backward-compatible alias of aiux-tab-group:tab-change; will be removed in a future release"
+   }
+  ],
+  "aiux-tab-group-modal": [
+   {
+    "name": "tab-group-modal:close",
+    "description": "Bubbles + composed. Parent should flip its `open`."
+   },
+   {
+    "name": "tab-group-modal:delete",
+    "description": "Bubbles + composed. detail: {groupId}",
+    "detail": "{ groupId: any; }"
+   },
+   {
+    "name": "tab-group-modal:save",
+    "description": "Bubbles + composed. detail: {group}",
+    "detail": "{ group: { name: string; color: string; }; mode: string; }"
+   }
+  ],
+  "aiux-tab-group-overflow-menu": [
+   {
+    "name": "tab-group-overflow-menu:delete",
+    "description": "detail: {group}",
+    "detail": "detail:"
+   },
+   {
+    "name": "tab-group-overflow-menu:edit",
+    "description": "detail: {group}",
+    "detail": "detail:"
+   },
+   {
+    "name": "tab-group-overflow-menu:move",
+    "description": "detail: {group, direction} (-1 up, 1 down)",
+    "detail": "detail:"
+   },
+   {
+    "name": "tab-group-overflow-menu:move-into",
+    "description": "detail: {group, targetGroupId}",
+    "detail": "detail:"
+   }
+  ],
+  "aiux-tab-overflow-menu": [
+   {
+    "name": "tab-overflow-menu:add-to-group",
+    "description": "detail: {tab, groupId}",
+    "detail": "detail:"
+   },
+   {
+    "name": "tab-overflow-menu:close",
+    "description": "detail: {tab}",
+    "detail": "detail:"
+   },
+   {
+    "name": "tab-overflow-menu:create-group",
+    "description": "detail: {tab}",
+    "detail": "detail:"
+   },
+   {
+    "name": "tab-overflow-menu:remove-from-group",
+    "description": "detail: {tab}",
+    "detail": "detail:"
+   }
+  ],
+  "aiux-time-selector": [
+   {
+    "name": "aiux-timeselector-input-change",
+    "description": "Fired on every input change. detail: { value: String, isValid: Boolean }. Value is the current input value, isValid indicates if it matches the format."
+   },
+   {
+    "name": "aiux-timeselector-invalid-set",
+    "description": "Fired when input becomes invalid. Not fired when error clears. detail: { message: String, value: String }"
+   },
+   {
+    "name": "aiux-timeselector-value-set",
+    "description": "Fired when time changes. detail: { value: String | null, isCleared: Boolean }. Value is in the format specified by format prop. When isCleared is true, value is null."
+   }
+  ],
+  "aiux-timer": [
+   {
+    "name": "aiux-timer:timer-ended",
+    "description": "Timer finished (`'End Time Reached'`),"
+   },
+   {
+    "name": "aiux-timer:timer-started",
+    "description": "Countdown started"
+   },
+   {
+    "name": "aiux-timer:timer-stopped",
+    "description": "Countdown paused"
+   }
+  ],
+  "aiux-toast-notification": [
+   {
+    "name": "toast-dismiss",
+    "description": "Fired when the toast is dismissed, after the exit animation completes"
+   }
+  ],
+  "aiux-toolbar": [
+   {
+    "name": "aiux-toolbar:group-toggled",
+    "description": "When a collapsible group is expanded or collapsed. Detail: `GroupToggledDetail`."
+   },
+   {
+    "name": "aiux-toolbar:item-clicked",
+    "description": "When an `action`-type item is clicked. Detail: `ItemClickedDetail`."
+   },
+   {
+    "name": "aiux-toolbar:item-toggled",
+    "description": "When a `toggle`-type item is clicked. Detail: `ItemToggledDetail`."
+   }
+  ],
+  "aiux-vb-card-reorder-modal": [
+   {
+    "name": "VB_REORDER#CANCEL",
+    "description": "move cancelled."
+   },
+   {
+    "name": "VB_REORDER#COMMIT",
+    "description": "card destination confirmed."
+   }
+  ],
+  "aiux-vb-lane-header": [
+   {
+    "name": "aiux-visual-board:lane-header-action",
+    "description": "{id, actionId} — dispatched via bindActionMenu() when a menu item (a consumer action or the built-in Move item) is clicked."
+   }
+  ],
+  "aiux-vb-reorder-list": [
+   {
+    "name": "aiux-vb-reorder-list:reorder",
+    "description": "{destinationIndex: number, isDirty:"
+   }
+  ],
+  "aiux-vb-reorder-modal": [
+   {
+    "name": "VB_REORDER#CANCEL",
+    "description": "user discarded / cancelled."
+   },
+   {
+    "name": "VB_REORDER#COMMIT",
+    "description": "{destinationIndex: number} — user saved the new order."
+   }
+  ],
+  "aiux-vb-swimlane-header": [
+   {
+    "name": "aiux-visual-board:swimlane-header-action",
+    "description": "{id, actionId} — dispatched via bindActionMenu() (AIUXVBSwimlaneHeaderBase) when a menu item is clicked."
+   },
+   {
+    "name": "VISUAL_BOARD#SWIMLANE_TOGGLE",
+    "description": "{id, collapsed} — dispatched by AIUXVBSwimlaneHeaderBase._toggleCollapse() when the chevron is clicked."
+   }
+  ],
+  "aiux-vb-swimlane-header-row": [
+   {
+    "name": "aiux-visual-board:swimlane-header-action",
+    "description": "{id, actionId} — dispatched via bindActionMenu() (AIUXVBSwimlaneHeaderBase) when a menu item is clicked."
+   },
+   {
+    "name": "VISUAL_BOARD#SWIMLANE_TOGGLE",
+    "description": "{id, collapsed} — dispatched by AIUXVBSwimlaneHeaderBase._toggleCollapse() when the chevron is clicked."
+   }
+  ],
+  "board-toolbar": [
+   {
+    "name": "VB_TOOLBAR#CARD_DETAILS_TOGGLE",
+    "description": "`{expanded: boolean}`"
+   },
+   {
+    "name": "VB_TOOLBAR#DEPENDENCIES_TOGGLE",
+    "description": "`{enabled: boolean}`"
+   },
+   {
+    "name": "VB_TOOLBAR#SWIMLANES_TOGGLE",
+    "description": "`{expanded: boolean}`"
+   }
+  ],
+  "card-dependencies-list": [
+   {
+    "name": "DEPENDENCY_LINE_EVENTS.DEPENDENCIES_POPOVER_CLOSED",
+    "description": "`{sourceCardId}` — escape / outside click / close button"
+   },
+   {
+    "name": "DEPENDENCY_LINE_EVENTS.LINE_CONNECTION_INITIATED",
+    "description": "`{sourceCardId}` — \"+ Add dependency\" activated"
+   },
+   {
+    "name": "NVB_EVENTS.DEPENDENCY_LINE_REMOVE_REQUESTED",
+    "description": "`{sourceCardId, targetCardId, dependencyType}` — a row's remove button was activated"
+   }
+  ],
+  "cb-add-filter-button": [
+   {
+    "name": "cb-add-filter-button:input",
+    "description": "Fired when the user types in the search input."
+   },
+   {
+    "name": "cb-add-filter-button:select",
+    "description": "Fired when the user selects a field."
+   }
+  ],
+  "cb-calendar-panel": [
+   {
+    "name": "cb-calendar-panel-change",
+    "description": "— when the user selects a date."
+   }
+  ],
+  "cb-default-filters": [
+   {
+    "name": "cb-encoded-query-updated",
+    "description": "Fired when conditions are deleted or restored."
+   }
+  ],
+  "cb-default-filters-pill": [
+   {
+    "name": "cb-default-filters-pill:delete",
+    "description": "Fired when a single condition pill is dismissed."
+   },
+   {
+    "name": "cb-default-filters-pill:restore",
+    "description": "Fired when the \"Restore default filters\" button is clicked."
+   }
+  ],
+  "cb-filter-overview": [
+   {
+    "name": "cb-encoded-query-updated",
+    "description": "Fired when a condition is dismissed and the query changes."
+   }
+  ],
+  "cb-filter-overview-pill": [
+   {
+    "name": "cb-filter-pill:dismiss",
+    "description": "Fired when the dismiss button is clicked."
+   },
+   {
+    "name": "cb-filter-pill:menu-action",
+    "description": "Fired when a menu item is selected."
+   },
+   {
+    "name": "cb-filter-pill:menu-item-hover",
+    "description": "Fired when pointer enters a preview menu item."
+   },
+   {
+    "name": "cb-filter-pill:menu-item-hover-end",
+    "description": "Fired when pointer leaves a preview menu item."
+   }
+  ],
+  "cb-filter-pill": [
+   {
+    "name": "cb-filter-pill:dismiss",
+    "description": "Fired when the dismiss button is clicked."
+   }
+  ],
+  "cb-filter-pill-date": [
+   {
+    "name": "cb-filter-pill-date:change",
+    "description": "The value changed — a preset committed immediately, or the custom picker's staged value was applied."
+   },
+   {
+    "name": "cb-filter-pill-date:delete",
+    "description": "Fired when the user clicks the Delete button."
+   }
+  ],
+  "cb-filter-pill-typeahead": [
+   {
+    "name": "cb-filter-pill-typeahead:apply",
+    "description": "The committed value. Only fires with `commit-on-apply`."
+   },
+   {
+    "name": "cb-filter-pill-typeahead:clear",
+    "description": "Fired when the user clicks the Clear button."
+   },
+   {
+    "name": "cb-filter-pill-typeahead:delete",
+    "description": "Fired when the user clicks the Delete button."
+   },
+   {
+    "name": "cb-filter-pill-typeahead:input",
+    "description": "Fired when the user types in the search input."
+   },
+   {
+    "name": "cb-filter-pill-typeahead:open",
+    "description": "Fired when the dropdown opens."
+   },
+   {
+    "name": "cb-filter-pill-typeahead:select",
+    "description": "Fired when the user picks an item, in both commit modes."
+   }
+  ],
+  "cb-filter-pill-typeahead-multi": [
+   {
+    "name": "cb-filter-pill-typeahead-multi:apply",
+    "description": "The committed set. Fired on Apply; with `commit-on-select`, also on every toggle and on Clear."
+   },
+   {
+    "name": "cb-filter-pill-typeahead-multi:clear",
+    "description": "Fired when the user clicks Clear."
+   },
+   {
+    "name": "cb-filter-pill-typeahead-multi:delete",
+    "description": "Fired when the user clicks Delete (only rendered with `show-delete`)."
+   },
+   {
+    "name": "cb-filter-pill-typeahead-multi:input",
+    "description": "Fired when the user types in the search input."
+   },
+   {
+    "name": "cb-filter-pill-typeahead-multi:open",
+    "description": "Fired when the dropdown opens."
+   },
+   {
+    "name": "cb-filter-pill-typeahead-multi:select",
+    "description": "Fired when the user toggles an item in the staged selection."
+   }
+  ],
+  "cb-group-by-presets": [
+   {
+    "name": "cb-group-by-preset-selected",
+    "description": "When the user selects a radio."
+   }
+  ],
+  "cb-quick-filter-bar": [
+   {
+    "name": "cb-quick-filter-bar:add-filter",
+    "description": "Fired when the user selects a field from the \"Add filter\" dropdown."
+   },
+   {
+    "name": "cb-quick-filter-bar:show-more",
+    "description": "Fired when the user toggles the \"Show more\" button."
+   }
+  ],
+  "cb-tag-list-picker": [
+   {
+    "name": "tag-picker:row-selected",
+    "description": "When the user clicks a tag row."
+   }
+  ],
+  "cb-toolbar-dropdown": [
+   {
+    "name": "cb-toolbar-dropdown:close",
+    "description": "Fired when the popover closes."
+   },
+   {
+    "name": "cb-toolbar-dropdown:open",
+    "description": "Fired when the popover opens."
+   }
+  ],
+  "horizontal-contextual-nav": [
+   {
+    "name": "horizontal-contextual-nav:toggle-favorite",
+    "description": "`{ favorited, anchorEl }` when the favorite button is pressed.",
+    "detail": "{ favorited: boolean; anchorEl: any; }"
+   },
+   {
+    "name": "horizontal-contextual-nav:toggle-tab",
+    "description": "`{ active }` when the add-to-tabs button is pressed.",
+    "detail": "{ active: boolean; }"
+   }
+  ],
+  "nav-global-overflow": [
+   {
+    "name": "nav-global-overflow:close",
+    "description": "when the popover requests closure"
+   },
+   {
+    "name": "nav-global-overflow:item-click",
+    "description": "{ item } when a leaf item is activated",
+    "detail": "{ item: any; }"
+   }
+  ],
+  "page-alert": [
+   {
+    "name": "alert-dismiss",
+    "description": "Fired when the alert is dismissed (manual or auto)."
+   }
+  ],
+  "playbook-card": [
+   {
+    "name": "activity-action",
+    "description": "When an operation button is clicked ({ activityContextId, targetState })"
+   },
+   {
+    "name": "playbook-internal:view-mode-change",
+    "description": "When card is expanded or collapsed ({ expanded: boolean })"
+   }
+  ],
+  "playbook-card-ai-header": [
+   {
+    "name": "aiux:open-chat",
+    "description": "— When View Progress is clicked."
+   }
+  ],
+  "playbook-guided-card": [
+   {
+    "name": "activity-action",
+    "description": "When an operation button is clicked ({ activityContextId, targetState })"
+   },
+   {
+    "name": "playbook-internal:view-mode-change",
+    "description": "When card is expanded or collapsed ({ expanded: boolean })"
+   }
+  ],
+  "playbook-record-generator": [
+   {
+    "name": "playbook-internal:renderer-update",
+    "description": "Pushes renderer state to card"
+   },
+   {
+    "name": "playbook-record-generator:record-created",
+    "description": "Record was created and playbook triggered"
+   }
+  ],
+  "sn-aiux-content-tree": [
+   {
+    "name": "content-tree-action-clicked",
+    "description": "{ item, action, domTarget }",
+    "detail": "-"
+   },
+   {
+    "name": "content-tree-actionable-item-clicked",
+    "description": "{ item }",
+    "detail": "-"
+   },
+   {
+    "name": "content-tree-dragdrop-end",
+    "description": "{ dragSource, dropTarget, dropAbove }",
+    "detail": "-"
+   },
+   {
+    "name": "content-tree-expanded-items-set",
+    "description": "{ value }",
+    "detail": "-"
+   },
+   {
+    "name": "content-tree-item-clicked",
+    "description": "{ item, isPrimaryClick }",
+    "detail": "-"
+   },
+   {
+    "name": "content-tree-item-right-clicked",
+    "description": "{ item, element, position }",
+    "detail": "-"
+   },
+   {
+    "name": "content-tree-loading-cancelled",
+    "description": "{ item, path }",
+    "detail": "-"
+   },
+   {
+    "name": "content-tree-loading-requested",
+    "description": "{ item, path }",
+    "detail": "-"
+   },
+   {
+    "name": "content-tree-selected-items-set",
+    "description": "{ value }",
+    "detail": "-"
+   }
+  ]
+ }
+}

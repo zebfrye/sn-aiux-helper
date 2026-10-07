@@ -13,9 +13,13 @@
   </head>
   <body>
     <!-- Top: the "inspected page". Bottom: the real panel + Elements sidebar, driven by a chrome.devtools mock. -->
-    <iframe id="inspected" name="inspected" src="/test/fixtures/demo.html"></iframe>
+    <iframe id="inspected" name="inspected"></iframe>
     <script>
-      const theme = new URLSearchParams(location.search).get('theme') || 'default';
+      const params = new URLSearchParams(location.search);
+      const theme = params.get('theme') || 'default';
+      // ?page=aiux loads the Lit/AIUX fixture; the default is the generic demo.
+      const page = /^[a-z0-9-]+$/.test(params.get('page') || '') ? params.get('page') : 'demo';
+      document.getElementById('inspected').src = '/test/fixtures/' + page + '.html';
       document.getElementById('inspected').addEventListener('load', () => {
         for (const [id, src] of [['panel', '/panel/panel.html'], ['sidebar', '/sidebar/sidebar.html']]) {
           const f = document.createElement('iframe');

@@ -10,6 +10,10 @@
   const AGENT_GLOBAL = '__SN_AIUX_DEVTOOLS__';
   const AGENT_VERSION = chrome.runtime.getManifest().version;
   let agentSource = null;
+  let catalogJson = null;
+
+  // DevTools' Console Utilities getEventListeners(), when this eval has them.
+  const GEL = '(typeof getEventListeners==="function"?getEventListeners:null)';
 
   function evalInPage(expression) {
     return new Promise((resolve, reject) => {
@@ -31,8 +35,30 @@
     return agentSource;
   }
 
+  async function loadCatalogJson() {
+    if (catalogJson === null) {
+      try {
+        const res = await fetch(chrome.runtime.getURL('data/aiux-events.json'));
+        catalogJson = JSON.stringify(await res.json());
+      } catch (e) {
+        catalogJson = 'null';
+      }
+    }
+    return catalogJson;
+  }
+
+  /** Agent source plus catalog, evaluating to the agent version. */
+  async function agentBundle(extraSource) {
+    const [source, catalog] = await Promise.all([loadAgentSource(), loadCatalogJson()]);
+    return (
+      source +
+      '\n;(function(a){a.setCatalog(' + catalog + ');' + (extraSource || '') + '})(window[' + JSON.stringify(AGENT_GLOBAL) + ']);\n' +
+      'window[' + JSON.stringify(AGENT_GLOBAL) + '].version'
+    );
+  }
+
   async function inject() {
-    const version = await evalInPage(await loadAgentSource());
+    const version = await evalInPage(await agentBundle());
     if (version !== AGENT_VERSION) {
       throw new Error('Agent version mismatch: ' + version + ' vs ' + AGENT_VERSION);
     }
@@ -56,9 +82,35 @@
     return res.r;
   }
 
+  function argsToSource(args) {
+    return args.map((a) => (a === undefined ? 'undefined' : JSON.stringify(a))).join(',');
+  }
+
   function call(method, ...args) {
-    const argsSource = args.map((a) => (a === undefined ? 'undefined' : JSON.stringify(a))).join(',');
-    return callSource(method, argsSource);
+    return callSource(method, argsToSource(args));
+  }
+
+  /** Like call(), with getEventListeners appended as the last argument. */
+  function callWithListeners(method, ...args) {
+    return callSource(method, argsToSource(args) + ',' + GEL);
+  }
+
+  /** Open a value (e.g. a listener function) in the Sources/Elements panel. */
+  async function revealValue(id, sectionKey, path, opts) {
+    await callSource('eventStatus', '');
+    return evalInPage(
+      'inspect(window[' + JSON.stringify(AGENT_GLOBAL) + '].resolveValue(' +
+        argsToSource([id, sectionKey, path, opts]) + ',' + GEL + '))'
+    );
+  }
+
+  /**
+   * Reload the inspected page with the agent injected before any page script,
+   * recording events from the very start.
+   */
+  async function reloadAndRecord(opts) {
+    const injectedScript = await agentBundle('a.startEventCapture(' + JSON.stringify(opts || {}) + ');');
+    chrome.devtools.inspectedWindow.reload({ ignoreCache: false, injectedScript });
   }
 
   /** Reveal a component's host element in the Elements panel. */
@@ -68,5 +120,5 @@
     );
   }
 
-  global.AiuxBridge = { call, callSource, evalInPage, revealInElements };
+  global.AiuxBridge = { call, callSource, callWithListeners, evalInPage, revealInElements, revealValue, reloadAndRecord };
 })(window);
