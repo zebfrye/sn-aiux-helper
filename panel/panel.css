@@ -1,0 +1,131 @@
+body { display: flex; flex-direction: column; overflow: hidden; }
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+  flex: none;
+}
+.toolbar #filter { flex: 0 1 280px; min-width: 120px; }
+.toolbar label { display: flex; align-items: center; gap: 3px; user-select: none; white-space: nowrap; }
+.status { margin-left: auto; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status.error { color: var(--error); }
+
+.settings {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+  flex: none;
+}
+.settings label { display: grid; gap: 2px; }
+.settings label.check { display: flex; gap: 4px; align-items: center; }
+.settings code { font-family: var(--font-mono); }
+.settings-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+.main { flex: 1; display: flex; min-height: 0; }
+.tree {
+  width: 40%;
+  min-width: 160px;
+  overflow: auto;
+  font: 12px/20px var(--font-mono);
+  outline: none;
+  padding-bottom: 20px;
+}
+.splitter { width: 4px; flex: none; cursor: col-resize; background: var(--border); }
+.details { flex: 1; overflow: auto; min-width: 200px; }
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  cursor: pointer;
+  padding-right: 8px;
+}
+.tree-row:hover { background: var(--bg-hover); }
+.tree-row.selected { background: var(--bg-selected); }
+.tree-row .twisty { cursor: pointer; }
+.tree-row .name { color: var(--key); }
+.tree-row.kind-react .name { color: #0b7fab; }
+body.dark .tree-row.kind-react .name { color: #61dafb; }
+.tree-row.kind-ce-undefined .name { color: var(--muted); font-style: italic; }
+.tree-row .react-tag { color: var(--muted); margin-left: 6px; font-size: 11px; }
+.tree-row mark { background: var(--flash); color: inherit; }
+
+/* ---- Tabs ---------------------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+}
+.tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  padding: 4px 10px;
+}
+.tab:hover { border-color: transparent; border-bottom-color: var(--border); }
+.tab.active { border-bottom-color: var(--accent); color: var(--accent); background: transparent; }
+.tab-badge {
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--bg);
+}
+.tab-page { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+/* ---- Events logger -------------------------------------------------------- */
+
+#ev-record.active { background: #d93025; border-color: #d93025; color: #fff; }
+#ev-filter { flex: 0 1 280px; min-width: 120px; }
+select { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 3px; }
+
+.event-log { width: 55%; min-width: 240px; display: flex; flex-direction: column; min-height: 0; }
+.event-list { flex: 1; overflow: auto; font: 12px/20px var(--font-mono); outline: none; }
+.event-row {
+  display: grid;
+  grid-template-columns: 92px minmax(140px, 1.3fr) minmax(100px, 1fr) minmax(80px, 1fr);
+  gap: 8px;
+  padding: 0 8px;
+  white-space: nowrap;
+  cursor: pointer;
+  border-bottom: 1px solid var(--bg-alt);
+}
+.event-row > span { overflow: hidden; text-overflow: ellipsis; }
+.event-head {
+  flex: none;
+  cursor: default;
+  font: 600 11px/20px var(--font-ui);
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+}
+.event-list .event-row:hover { background: var(--bg-hover); }
+.event-list .event-row.selected { background: var(--bg-selected); }
+.event-row .c-time { color: var(--muted); }
+.event-row .c-type { color: var(--key); }
+.event-row .c-src { color: var(--fn); }
+.event-row .c-detail { color: var(--muted); }
+.event-row.prevented .c-type { text-decoration: line-through; }
+.event-row.native .c-type { color: var(--text); }
+.event-divider {
+  padding: 2px 8px;
+  font: italic 11px var(--font-ui);
+  color: var(--muted);
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---- Contexts tab --------------------------------------------------------- */
+
+.toolbar .hint { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }

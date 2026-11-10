@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>AIUX DevTools demo page</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 16px; }
+      now-aiux-chat, sn-aiux-insights { display: block; border: 1px solid #ccc; border-radius: 6px; padding: 8px; margin: 8px 0; }
+    </style>
+  </head>
+  <body>
+    <!--
+      A stand-in for a ServiceNow AIUX page, used by the tests and `npm run demo`.
+      It contains:
+        * custom elements whose public properties are class accessors and whose
+          private state lives on a non-enumerable host slot (like UI frameworks do);
+        * a React 18 tree rendered inside a custom element's shadow root.
+    -->
+    <h3>AIUX DevTools demo</h3>
+    <now-aiux-chat id="chat" component-id="assistant_chat"></now-aiux-chat>
+    <sn-aiux-insights id="insights"></sn-aiux-insights>
+    <div class="not-a-component"><span>plain DOM is ignored</span></div>
+
+    <script src="../../node_modules/react/umd/react.development.js"></script>
+    <script src="../../node_modules/react-dom/umd/react-dom.development.js"></script>
+    <script>
+      // --- A tiny custom-element "framework" ---------------------------------
+      function defineComponent(tag, { properties, initialState, view }) {
+        class Component extends HTMLElement {
+          static get observedAttributes() {
+            return Object.keys(properties).map((p) => p.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()));
+          }
+          constructor() {
+            super();
+            Object.defineProperty(this, '__demoInternals', {
+              value: {
+                props: Object.assign({}, properties),
+                state: JSON.parse(JSON.stringify(initialState)),
+                updateState: (patch) => {
+                  Object.assign(this.__demoInternals.state, patch);
+                  this.render();
+                }
+              }
+            });
+            this.attachShadow({ mode: 'open' });
+          }
+          connectedCallback() { this.render(); }
+          attributeChangedCallback(name, _old, value) {
+            const prop = name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+            this[prop] = value;
+          }
+          render() {
+            const i = this.__demoInternals;
+            this.shadowRoot.innerHTML = view(i.props, i.state);
+          }
+        }
+        for (const name of Object.keys(properties)) {
+          Object.defineProperty(Component.prototype, name, {
+            get() { return this.__demoInternals.props[name]; },
+            set(v) { this.__demoInternals.props[name] = v; if (this.isConnected) this.render(); },
+            configurable: true
+          });
+        }
+        customElements.define(tag, Component);
+      }
+
+      defineComponent('now-aiux-message', {
+        properties: { role: 'assistant', text: '' },
+        initialState: { expanded: false },
+        view: (p) => `<p><b>${p.role}:</b> ${p.text}</p>`
+      });
+
+      defineComponent('now-aiux-chat', {
+        properties: { heading: 'Now Assist', messages: [], loading: false, config: { model: 'now-llm', temperature: 0.2 } },
+        initialState: { draft: '', unread: 2, panel: { open: true, width: 360 } },
+        view: (p, s) =>
+          `<h4>${p.heading} ${p.loading ? '(thinking…)' : ''} — unread: ${s.unread}</h4>` +
+          (p.messages || []).map((m) => `<now-aiux-message role="${m.role}" text="${m.text}"></now-aiux-message>`).join('')
+      });
+
+      const chat = document.getElementById('chat');
+      chat.messages = [
+        { role: 'user', text: 'Summarize INC0010023' },
+        { role: 'assistant', text: 'The incident concerns an email outage…' }
+      ];
+
+      // --- React inside a custom element ------------------------------------
+      class SnAiuxInsights extends HTMLElement {
+        connectedCallback() {
+          const root = this.attachShadow({ mode: 'open' });
+          const mount = document.createElement('div');
+          root.appendChild(mount);
+          const e = React.createElement;
+
+          function InsightCard({ title, score }) {
+            const [pinned, setPinned] = React.useState(false);
+            const [filters, setFilters] = React.useState({ priority: 'P1', tags: ['email', 'outage'] });
+            const label = React.useMemo(() => title.toUpperCase(), [title]);
+            const ref = React.useRef(null);
+            React.useEffect(() => {}, [pinned]);
+            return e('div', { ref, className: 'card' },
+              e('h5', null, label, pinned ? ' 📌' : ''),
+              e('span', { className: 'score' }, 'score ' + score + ' · ' + filters.priority),
+              e('button', { onClick: () => setPinned(!pinned) }, 'pin'));
+          }
+
+          class InsightsList extends React.Component {
+            constructor(props) {
+              super(props);
+              this.state = { selected: 0, items: ['Root cause', 'Similar incidents'] };
+            }
+            render() {
+              return e('section', null, this.state.items.map((t, i) => e(InsightCard, { key: t, title: t, score: 0.9 - i / 10 })));
+            }
+          }
+
+          ReactDOM.createRoot(mount).render(e(InsightsList, { source: 'now-assist' }));
+        }
+      }
+      customElements.define('sn-aiux-insights', SnAiuxInsights);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,322 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>AIUX DevTools — AIUX demo</title>
+    <script src="listener-tracker.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "lit": "/node_modules/lit/index.js",
+          "lit/": "/node_modules/lit/",
+          "lit-html": "/node_modules/lit-html/lit-html.js",
+          "lit-html/": "/node_modules/lit-html/",
+          "lit-element/": "/node_modules/lit-element/",
+          "@lit/reactive-element": "/node_modules/@lit/reactive-element/reactive-element.js",
+          "@lit/reactive-element/": "/node_modules/@lit/reactive-element/",
+          "@lit/context": "/node_modules/@lit/context/index.js"
+        }
+      }
+    </script>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 16px; }
+      aiux-checklist, content-toolbar, aiux-record-provider, kit-route-widget { display: block; border: 1px solid #ccc; border-radius: 6px; padding: 8px; margin: 8px 0; }
+    </style>
+  </head>
+  <body>
+    <!--
+      A stand-in for an AIUX page, used by the tests and `npm run demo`
+      (harness.html?page=aiux). Components are real Lit (production build)
+      elements on a small AIUXElement look-alike that mirrors the public
+      surface of @servicenow/aiux's base class: Lit properties + @state,
+      symbol-keyed `data`, @config fields recorded in `configSchema`, a
+      reactive controller holding UI state, global and scoped contexts
+      declared with `static contexts`,
+      `static capabilities`, setLoaderData()/trackEvent(), and CustomEvents
+      dispatched from the host with bubbles + composed.
+    -->
+    <h3>AIUX demo</h3>
+    <content-toolbar></content-toolbar>
+    <aiux-checklist id="list" header-title="Resolution steps"
+      checklist-data='[{"id":"1","label":"Reproduce the issue"},{"id":"2","label":"Restart the mail service"}]'></aiux-checklist>
+    <aiux-record-provider table="incident"><aiux-record-field></aiux-record-field></aiux-record-provider>
+    <aiux-record-provider table="problem"><aiux-record-field></aiux-record-field></aiux-record-provider>
+    <kit-route-widget></kit-route-widget>
+
+    <script type="module">
+      import { LitElement, html } from 'lit';
+      import { ContextConsumer, ContextProvider, createContext as createLitContext } from '@lit/context';
+
+      // --- Contexts: the same public shape as createContext() in
+      // @servicenow/aiux/aiux-components-core. Global contexts hold one value
+      // per page; scoped ones are provided by an element to its descendants.
+      function createContext(name, defaultValue, options = {}) {
+        if (options.scoped) {
+          const providers = new WeakMap(); // host -> { value, subscribers }
+          const consumers = new WeakMap(); // consumer -> provider host
+          const nearest = (host) => {
+            let el = host;
+            while (el) {
+              el = el.parentElement || el.getRootNode()?.host || null;
+              if (el && providers.has(el)) return el;
+            }
+            return null;
+          };
+          const bind = (host) => {
+            const provider = nearest(host);
+            if (provider) {
+              providers.get(provider).subscribers.add(host);
+              consumers.set(host, provider);
+            }
+            return provider;
+          };
+          return {
+            _name: name,
+            _scoped: true,
+            provide(host, value) {
+              const entry = providers.get(host);
+              if (!entry) return void providers.set(host, { value, subscribers: new Set() });
+              entry.value = value;
+              entry.subscribers.forEach((s) => s.requestUpdate());
+            },
+            get(host) {
+              const provider = consumers.get(host) || (host && host.isConnected ? bind(host) : null);
+              return provider ? providers.get(provider).value : defaultValue;
+            },
+            _registerConsumer(host) {
+              bind(host);
+              return () => {};
+            },
+            // For the tests: how many elements are subscribed to a provider.
+            _subscriberCount: (host) => providers.get(host)?.subscribers.size ?? 0
+          };
+        }
+        const subscribers = new Set();
+        const setValue = (value) => {
+          context._value = value;
+          subscribers.forEach((cb) => cb(value));
+        };
+        const context = {
+          _name: name,
+          _value: defaultValue,
+          _immutable: !!options.immutable,
+          get: () => context._value,
+          set(value) {
+            if (context._immutable) throw new Error(`Cannot call set() on immutable context "${name}".`);
+            setValue(value);
+          },
+          subscribe(cb) {
+            subscribers.add(cb);
+            return () => subscribers.delete(cb);
+          }
+        };
+        return context._immutable ? [context, setValue] : context;
+      }
+
+      const routeContext = createContext('route', { path: '/now/incident/INC0010023', params: { table: 'incident' }, matched: true });
+      const [userContext] = createContext('user', { name: 'Abel Tuter', roles: ['itil'] }, { immutable: true });
+      const recordApis = createContext('record-apis', null, { scoped: true });
+      window.__CONTEXT_DATA__ = { route: { path: '/now/incident/INC0010023' } };
+      window.__fixture = { routeContext, recordApis }; // for the tests
+
+      const dataProp = Symbol('aiuxData');
+      const loaderData = new WeakMap();
+
+      class AIUXElement extends LitElement {
+        static properties = {
+          'layout-key': { type: String, reflect: true },
+          aiuxConfigData: { type: Object, attribute: 'aiux-config-data' },
+          _islandActivated: { state: true },
+          [dataProp]: { type: Object, attribute: false }
+        };
+        constructor() {
+          super();
+          this._islandActivated = true;
+        }
+        connectedCallback() {
+          super.connectedCallback();
+          // subscribeToContexts(): re-render when a declared context changes.
+          for (const ctx of this.constructor.contexts || []) {
+            if (ctx._scoped) ctx._registerConsumer(this);
+            else ctx.subscribe(() => this.requestUpdate());
+          }
+        }
+        get data() { return this[dataProp]; }
+        set data(v) { this[dataProp] = v; }
+        get loaderData() { return loaderData.get(this); }
+        get serverScriptData() { return undefined; }
+        get loaderScopeKey() { return 'default'; }
+        get isEmbedded() { return false; }
+        setLoaderData(d) { loaderData.set(this, d); this.requestUpdate(); }
+        trackEvent() {}
+      }
+
+      // Same shape as AIUX's @config: schema on the prototype, value read from aiuxConfigData.
+      function config(proto, key, opts) {
+        if (!Object.prototype.hasOwnProperty.call(proto, 'configSchema')) proto.configSchema = [];
+        proto.configSchema.push({ key, ...opts });
+        Object.defineProperty(proto, key, {
+          set() {},
+          get() {
+            const v = this.aiuxConfigData?.[key];
+            return v === undefined ? opts.default : v;
+          }
+        });
+      }
+
+      // Controllers named the way a minifier leaves them on a real instance
+      // (class names shortened, property names intact).
+      class eg { // @lit/localize's controller: registered, but held by no field
+        constructor(host) {
+          this.host = host;
+          this.__litLocalizeEventHandler = () => {};
+          host.addController(this);
+        }
+        hostConnected() {}
+      }
+      class ez { // registered, held by no field, no recognisable shape
+        constructor(host) {
+          this._entries = [];
+          this._rafId = 0;
+          host.addController(this);
+        }
+        hostUpdated() {}
+      }
+      class o { // held by another controller, not by the host
+        constructor(host) {
+          this._live = null;
+          host.addController(this);
+        }
+      }
+      class E { // held by a host field
+        constructor(host) {
+          this.open = false;
+          host.addController(this);
+        }
+        hostConnected() {}
+      }
+
+      // Like real AIUX components, UI state lives in a Lit reactive controller.
+      class ChecklistController {
+        constructor(host) {
+          this.host = host;
+          this.addItemValue = '';
+          this.menuOpen = false;
+          this.toggleMenu = () => {
+            this.menuOpen = !this.menuOpen;
+            this.host.requestUpdate();
+          };
+          host.addController(this);
+        }
+        hostConnected() {}
+      }
+
+      class AIUXChecklist extends AIUXElement {
+        static properties = {
+          checklistData: { type: Array, attribute: 'checklist-data' },
+          headerTitle: { type: String, attribute: 'header-title' },
+          _activeIndex: { state: true },
+          _draft: { state: true }
+        };
+        static capabilities = { addItem: { handler: 'addItem' } };
+        static contexts = [routeContext, userContext];
+        constructor() {
+          super();
+          this.checklistData = [];
+          this.headerTitle = '';
+          this._activeIndex = -1;
+          this._draft = '';
+          new eg(this);
+          new ez(this);
+          this._ctrl = new ChecklistController(this);
+          this._ctrl._announcer = new o(this);
+          this.addEventListener('keydown', this._onKeyDown);
+        }
+        _onKeyDown() {}
+        addItem(label) {
+          this.checklistData = [...this.checklistData, { id: String(this.checklistData.length + 1), label }];
+        }
+        firstUpdated() {
+          this.dispatchEvent(new CustomEvent('aiux-checklist:ready', { detail: { count: this.checklistData.length }, bubbles: true, composed: true }));
+        }
+        _click(item, index) {
+          this._activeIndex = index;
+          this.dispatchEvent(new CustomEvent('aiux-checklist:item-clicked', { detail: { item, index }, bubbles: true, composed: true }));
+        }
+        render() {
+          return html`
+            <h4>${this.headerTitle} <small>(${this.configSize})</small></h4>
+            <p class="route">${routeContext.get().path} · ${userContext.get().name}</p>
+            ${this._ctrl.menuOpen ? html`<div class="menu">Edit all · Delete all</div>` : ''}
+            ${this._ctrl.addItemValue ? html`<div class="draft">draft: ${this._ctrl.addItemValue}</div>` : ''}
+            <ul>${this.checklistData.map((item, i) => html`
+              <li class=${i === this._activeIndex ? 'active' : ''} @click=${() => this._click(item, i)}>
+                ${i === this._activeIndex ? '▶ ' : ''}${item.label}
+              </li>`)}
+            </ul>`;
+        }
+      }
+      config(AIUXChecklist.prototype, 'configSize', { label: 'Size', type: String, default: 'md' });
+
+      // An AIUX element whose tag doesn't match the default tag pattern.
+      class ContentToolbar extends AIUXElement {
+        static properties = { items: { type: Array } };
+        constructor() {
+          super();
+          this.items = ['Save', 'Assign'];
+          this._menu = new E(this);
+        }
+        render() {
+          return html`${this.items.map((label) => html`<button @click=${() => this.dispatchEvent(new CustomEvent('content-toolbar:action', { detail: { label }, bubbles: true, composed: true }))}>${label}</button> `)}`;
+        }
+      }
+
+      // Scoped context: each provider shares a value with its own descendants.
+      class AIUXRecordProvider extends AIUXElement {
+        connectedCallback() {
+          super.connectedCallback();
+          recordApis.provide(this, { table: this.getAttribute('table'), isDirty: false });
+        }
+        render() {
+          return html`<slot></slot>`;
+        }
+      }
+      class AIUXRecordField extends AIUXElement {
+        static contexts = [recordApis, routeContext];
+        render() {
+          return html`<span class="table">table: ${recordApis.get(this)?.table}</span>`;
+        }
+      }
+
+      // An aiux-kit style widget: a plain Lit element subscribing through
+      // @lit/context's ContextConsumer. A small bridge answers its requests
+      // for AIUX contexts, as @servicenow/aiux-context does.
+      const kitTheme = createLitContext(Symbol('kit-theme'));
+      new ContextProvider(document.body, { context: kitTheme, initialValue: 'dark' });
+      window.addEventListener('context-request', (event) => {
+        if (event.context !== routeContext) return;
+        event.stopPropagation();
+        const unsubscribe = routeContext.subscribe((value) => event.callback(value, unsubscribe));
+        event.callback(routeContext.get(), unsubscribe);
+      });
+      class KitRouteWidget extends LitElement {
+        constructor() {
+          super();
+          this._route = new ContextConsumer(this, { context: routeContext, subscribe: true });
+          this._theme = new ContextConsumer(this, { context: kitTheme, subscribe: true });
+        }
+        render() {
+          return html`<span class="path">kit widget on ${this._route.value?.path} (${this._theme.value})</span>`;
+        }
+      }
+
+      customElements.define('aiux-record-provider', AIUXRecordProvider);
+      customElements.define('aiux-record-field', AIUXRecordField);
+      customElements.define('kit-route-widget', KitRouteWidget);
+      customElements.define('aiux-checklist', AIUXChecklist);
+      customElements.define('content-toolbar', ContentToolbar);
+      document.getElementById('list').data = { incident: 'INC0010023' };
+      window.dispatchEvent(new CustomEvent('aiux:app-ready', { detail: { components: 2 } }));
+    </script>
+  </body>
+</html>
