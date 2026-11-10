@@ -3,7 +3,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { startServer } from './serve.mjs';
 
 const AGENT = await readFile(new URL('../agent/agent.js', import.meta.url), 'utf8');
@@ -13,7 +13,7 @@ let server, browser, page;
 
 before(async () => {
   server = await startServer();
-  browser = await chromium.launch();
+  browser = await launchChromium();
   page = await browser.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/test/fixtures/aiux.html`);
   await page.waitForFunction(() => document.getElementById('list')?.shadowRoot?.querySelector('li'));
@@ -93,6 +93,26 @@ test('editing Lit state, properties, config and data re-renders', async () => {
   assert.deepEqual(await page.evaluate(() => document.getElementById('list').data), { incident: 'INC2' });
   assert.equal((await api('setValue', id, 'aiux', ['loaderScopeKey'], '"x"', {})).ok, false);
   assert.match(await text(), /Resolution steps/);
+});
+
+test('reactive controllers expose the UI state AIUX components keep there', async () => {
+  const id = (await treeIds())['aiux-checklist'];
+  const data = await inspect(id, { expanded: { controllers: { '["ChecklistController"]': 1 } } });
+  assert.deepEqual(data.sections.map((s) => s.key).slice(0, 4), ['properties', 'state', 'controllers', 'config']);
+  const ctrl = childOf(section(data, 'controllers').value, 'ChecklistController');
+  assert.deepEqual(keys(ctrl), ['addItemValue', 'menuOpen', 'toggleMenu'], 'data first, functions last, host link dropped');
+  assert.equal(childOf(ctrl, 'menuOpen').v, false);
+
+  const res = await api('setValue', id, 'controllers', ['ChecklistController', 'menuOpen'], 'true', {});
+  assert.deepEqual(res, { ok: true, method: 'ChecklistController.menuOpen = … + requestUpdate()' });
+  await page.waitForFunction(() => !!document.getElementById('list').shadowRoot.querySelector('.menu'));
+  await api('setValue', id, 'controllers', ['ChecklistController', 'addItemValue'], '"Call the user"', {});
+  await page.waitForFunction(() => document.getElementById('list').shadowRoot.textContent.includes('draft: Call the user'));
+  assert.equal((await api('setValue', id, 'controllers', ['ChecklistController'], '{}', {})).ok, false, 'a controller itself is not replaceable');
+  await api('setValue', id, 'controllers', ['ChecklistController', 'menuOpen'], 'false', {});
+
+  const toolbar = await inspect((await treeIds())['content-toolbar']);
+  assert.equal(section(toolbar, 'controllers'), undefined, 'no section without controllers');
 });
 
 test('declared events come from the catalog; listeners from getEventListeners', async () => {
@@ -175,6 +195,20 @@ test('undeclared events are flagged; the source of an inner dispatch is its host
   assert.match(childOf(section(comp, 'events').value, 'aiux-checklist:custom-thing').v, /not declared/);
 });
 
+test('adoptFrame records a child frame immediately while capturing', async () => {
+  const since = (await api('getEvents', 0)).seq;
+  const adopted = await page.evaluate(() => {
+    const frame = document.createElement('iframe');
+    frame.id = 'child';
+    document.body.appendChild(frame);
+    const ok = window.__SN_AIUX_DEVTOOLS__.adoptFrame(frame.contentWindow);
+    frame.contentWindow.dispatchEvent(new frame.contentWindow.CustomEvent('aiux:frame-event', { detail: 1 }));
+    return ok;
+  });
+  assert.equal(adopted, true);
+  assert.deepEqual((await api('getEvents', since)).events.map((e) => e.type), ['aiux:frame-event']);
+});
+
 test('stopping restores the native dispatchEvent and leaves dispatch behaviour intact', async () => {
   const result = await page.evaluate(() => {
     const el = document.getElementById('list');
@@ -185,6 +219,12 @@ test('stopping restores the native dispatchEvent and leaves dispatch behaviour i
   assert.equal(result, false);
   await api('stopEventCapture');
   assert.equal(await page.evaluate(() => /\[native code\]/.test(EventTarget.prototype.dispatchEvent.toString())), true);
+  assert.equal(
+    await page.evaluate(() => /\[native code\]/.test(document.getElementById('child').contentWindow.EventTarget.prototype.dispatchEvent.toString())),
+    true,
+    'child frames are restored too'
+  );
+  assert.equal(await page.evaluate(() => window.__SN_AIUX_DEVTOOLS__.adoptFrame(window)), false, 'adoptFrame is a no-op when not recording');
   const since = (await api('getEvents', 0)).seq;
   await page.evaluate(() => document.getElementById('list').shadowRoot.querySelector('li').click());
   assert.equal((await api('getEvents', since)).events.length, 0);

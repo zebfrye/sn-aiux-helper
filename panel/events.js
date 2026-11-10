@@ -25,7 +25,7 @@
   let entries = []; // { id, session, s, t, type, cls, src, sl, p, f, pv, d } | { divider }
   let selected = null;
   let pollTimer = null;
-  let polling = false;
+  let inflight = null; // the poll in progress, if any
 
   const opts = (extra) => Object.assign(window.AiuxPanel.agentOptions(), { eventMode: settings.eventMode }, extra || {});
 
@@ -143,9 +143,17 @@
   // Polling the agent
   // ---------------------------------------------------------------------------
 
-  async function poll() {
-    if (polling) return;
-    polling = true;
+  /** Fetch new events. Concurrent callers share the poll already in flight. */
+  function poll() {
+    if (!inflight) {
+      inflight = fetchEvents().finally(() => {
+        inflight = null;
+      });
+    }
+    return inflight;
+  }
+
+  async function fetchEvents() {
     try {
       let res = await call('getEvents', lastSeq);
       if (res.session !== session) {
@@ -174,8 +182,6 @@
       if (batch.length === 500) setTimeout(poll, 0);
     } catch (e) {
       setStatus('Cannot read page: ' + e.message, true);
-    } finally {
-      polling = false;
     }
   }
 
@@ -212,8 +218,11 @@
     fromReload = false;
     stopPolling();
     try {
-      await poll(); // collect anything dispatched since the last poll
       await call('stopEventCapture');
+      // Collect what was dispatched since the last poll: let a poll already
+      // in flight finish, then fetch once more now that recording has stopped.
+      await poll();
+      await poll();
     } catch (e) {
       /* page gone */
     }

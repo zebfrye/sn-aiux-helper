@@ -3,7 +3,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { startServer } from './serve.mjs';
 
 let server, browser, page, panel, inspected;
@@ -11,7 +11,7 @@ const errors = [];
 
 before(async () => {
   server = await startServer();
-  browser = await chromium.launch();
+  browser = await launchChromium();
   page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   page.on('pageerror', (e) => errors.push(e));
   await page.goto(`http://127.0.0.1:${server.address().port}/test/harness.html?page=aiux`);
@@ -36,6 +36,24 @@ test('Components tab shows Lit properties and @state for AIUX components', async
   assert.deepEqual(await panel.locator('.section-state .row .key').allTextContents(), ['_activeIndex', '_draft', '_islandActivated']);
   assert.deepEqual(await panel.locator('.details-header .badge').allTextContents(), ['Custom Element', 'ServiceNow', 'Lit', 'AIUX']);
   assert.ok((await panel.locator('.section-events .row .key').allTextContents()).includes('aiux-checklist:item-clicked'));
+});
+
+test('controller state is shown and editable from the panel', async () => {
+  await panel.locator('.section-controllers .row', { hasText: 'ChecklistController' }).click();
+  const menuOpen = panel.locator('.section-controllers .row').filter({ has: panel.locator('.key', { hasText: /^menuOpen$/ }) });
+  await menuOpen.waitFor();
+  await page.screenshot({ path: 'test-results/aiux-inspector.png' });
+
+  await menuOpen.locator('.val').dblclick();
+  await panel.locator('.section-controllers .edit-input').fill('true');
+  await panel.locator('.section-controllers .edit-input').press('Enter');
+  await inspected.locator('aiux-checklist .menu').waitFor();
+  assert.match(await panel.locator('#status').textContent(), /ChecklistController\.menuOpen = … \+ requestUpdate\(\)/);
+
+  await menuOpen.locator('.val', { hasText: 'true' }).dblclick();
+  await panel.locator('.section-controllers .edit-input').fill('false');
+  await panel.locator('.section-controllers .edit-input').press('Enter');
+  await inspected.locator('aiux-checklist .menu').waitFor({ state: 'detached' });
 });
 
 test('recording logs events dispatched by components', async () => {
@@ -87,13 +105,18 @@ test('jumping to the source component shows observed events and listeners', asyn
   await page.screenshot({ path: 'test-results/aiux-component.png' });
 });
 
-test('stopping recording stops logging', async () => {
+test('an event fired just before Stop is still logged; none after', async () => {
   await panel.locator('.tab', { hasText: 'Events' }).click();
+  // Fire and stop back-to-back, inside one poll interval.
+  await inspected.locator('content-toolbar button').nth(1).click();
   await panel.locator('#ev-record').click();
   await panel.locator('#ev-record:not(.active)').waitFor();
+  await rows().nth(2).waitFor({ timeout: 2000 });
+  assert.equal((await types())[2], 'content-toolbar:action');
+
   await inspected.locator('aiux-checklist li').first().click();
   await page.waitForTimeout(800);
-  assert.equal(await rows().count(), 2);
+  assert.equal(await rows().count(), 3);
 });
 
 test('Reload & record captures events fired while the page boots', async () => {

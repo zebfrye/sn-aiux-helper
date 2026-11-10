@@ -1,6 +1,6 @@
 // Renders icons/icon{16,32,48,128}.png from an inline SVG using Playwright.
 // Usage: node scripts/make-icons.mjs
-import { chromium } from 'playwright';
+import { launchChromium } from '../test/browser.mjs';
 import { writeFileSync } from 'node:fs';
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
@@ -10,7 +10,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
   <path d="M64 34 L70 56 L92 62 L70 68 L64 92 L58 68 L36 62 L58 56 Z" fill="#ffffff"/>
 </svg>`;
 
-const browser = await chromium.launch();
+const browser = await launchChromium();
 const page = await browser.newPage();
 for (const size of [16, 32, 48, 128]) {
   await page.setViewportSize({ width: size, height: size });

@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.1.0';
+  var VERSION = '1.2.0';
   var GLOBAL = '__SN_AIUX_DEVTOOLS__';
 
   if (window[GLOBAL] && window[GLOBAL].version === VERSION) {
@@ -119,6 +119,17 @@
     }
   }
 
+  /**
+   * Built-in type tag ("Map", "Date", …). Unlike `instanceof`, this also
+   * recognises objects created in another realm (a same-origin iframe).
+   */
+  function brand(v) {
+    var b = Object.prototype.toString.call(v).slice(8, -1);
+    // Symbol.toStringTag can be spoofed; only trust collection tags that quack.
+    if ((b === 'Map' || b === 'Set') && !(typeof v.forEach === 'function' && typeof v.size === 'number')) return 'Object';
+    return b;
+  }
+
   function safeGet(obj, key) {
     try {
       return { ok: true, value: obj[key] };
@@ -189,7 +200,7 @@
   }
 
   function child(obj, seg) {
-    if (obj instanceof Map) {
+    if (brand(obj) === 'Map') {
       if (seg.indexOf(ENTRY) === 0) {
         var i = Number(seg.slice(ENTRY.length));
         var n = 0;
@@ -200,7 +211,7 @@
         return { ok: !!found, value: found };
       }
     }
-    if (obj instanceof Set && seg.indexOf(ENTRY) === 0) {
+    if (brand(obj) === 'Set' && seg.indexOf(ENTRY) === 0) {
       var arr = Array.from(obj);
       var j = Number(seg.slice(ENTRY.length));
       return { ok: j < arr.length, value: arr[j] };
@@ -266,12 +277,13 @@
     if (t === 'function') return 'ƒ ' + (v.name || 'anonymous') + '()';
     if (isNode(v)) return nodePreview(v);
     if (Array.isArray(v)) return 'Array(' + v.length + ')';
-    if (v instanceof Map) return 'Map(' + v.size + ')';
-    if (v instanceof Set) return 'Set(' + v.size + ')';
-    if (v instanceof Date) return isNaN(v) ? 'Invalid Date' : v.toISOString();
-    if (v instanceof RegExp) return String(v);
-    if (v instanceof Error) return (v.name || 'Error') + ': ' + v.message;
-    if (typeof Promise !== 'undefined' && v instanceof Promise) return 'Promise';
+    var b = brand(v);
+    if (b === 'Map') return 'Map(' + v.size + ')';
+    if (b === 'Set') return 'Set(' + v.size + ')';
+    if (b === 'Date') return isNaN(v) ? 'Invalid Date' : v.toISOString();
+    if (b === 'RegExp') return String(v);
+    if (b === 'Error') return (v.name || 'Error') + ': ' + v.message;
+    if (b === 'Promise') return 'Promise';
     var name = ctorName(v);
     var keys = [];
     try { keys = Object.keys(v); } catch (e) { /* ignore */ }
@@ -299,11 +311,12 @@
     if (t !== 'object') return t;
     if (isNode(v)) return 'node';
     if (Array.isArray(v)) return 'array';
-    if (v instanceof Map) return 'map';
-    if (v instanceof Set) return 'set';
-    if (v instanceof Date) return 'date';
-    if (v instanceof RegExp) return 'regexp';
-    if (v instanceof Error) return 'error';
+    var b = brand(v);
+    if (b === 'Map') return 'map';
+    if (b === 'Set') return 'set';
+    if (b === 'Date') return 'date';
+    if (b === 'RegExp') return 'regexp';
+    if (b === 'Error') return 'error';
     return 'object';
   }
 
@@ -311,7 +324,8 @@
     // Returns [[segment, label, value], ...] and total count.
     var out = [];
     var total = 0;
-    if (v instanceof Map) {
+    var b = brand(v);
+    if (b === 'Map') {
       var i = 0;
       v.forEach(function (val, k) {
         total++;
@@ -320,7 +334,7 @@
       });
       return { entries: out, total: total };
     }
-    if (v instanceof Set) {
+    if (b === 'Set') {
       var j = 0;
       v.forEach(function (val) {
         total++;
@@ -357,8 +371,9 @@
     if (typeof v === 'function') {
       try { return Object.keys(v).length > 0; } catch (e) { return false; }
     }
-    if (v instanceof Map || v instanceof Set) return v.size > 0;
-    if (v instanceof Date || v instanceof RegExp) return false;
+    var b = brand(v);
+    if (b === 'Map' || b === 'Set') return v.size > 0;
+    if (b === 'Date' || b === 'RegExp') return false;
     if (isNode(v)) return true;
     try {
       return Object.getOwnPropertyNames(v).length > (Array.isArray(v) ? 1 : 0) || Object.getOwnPropertySymbols(v).length > 0;
@@ -373,6 +388,17 @@
    * reported lazily with `h` (has children) so the panel can ask for more.
    */
   function serialize(v, path, ctx, seen) {
+    var depth = seen.length;
+    try {
+      return serializeValue(v, path, ctx, seen);
+    } catch (e) {
+      // e.g. a revoked Proxy or a throwing trap: report it, keep the rest.
+      seen.length = depth;
+      return { t: 'error', p: '<cannot inspect: ' + String(e && e.message || e) + '>' };
+    }
+  }
+
+  function serializeValue(v, path, ctx, seen) {
     var t = typeOf(v);
     var node = { t: t, p: preview(v) };
     if (t === 'string') {
@@ -439,15 +465,11 @@
   // can be told apart exactly. Class names are minified in production builds,
   // so AIUXElement is recognised by its public API instead.
 
-  function isMapLike(v) {
-    return Object.prototype.toString.call(v) === '[object Map]';
-  }
-
   function litProperties(el) {
     var ctor = el && el.constructor;
     if (!ctor || ctor === Object) return null;
     var got = safeGet(ctor, 'elementProperties');
-    return got.ok && isMapLike(got.value) ? got.value : null;
+    return got.ok && brand(got.value) === 'Map' ? got.value : null;
   }
 
   function isAiuxElement(el) {
@@ -483,6 +505,60 @@
       return obj;
     }
     return { props: build(publicNames), state: build(stateNames), stateCount: stateNames.length };
+  }
+
+  var CONTROLLER_HOOKS = ['hostConnected', 'hostDisconnected', 'hostUpdate', 'hostUpdated'];
+
+  /**
+   * Lit reactive controllers registered on the host with addController().
+   * AIUX components keep most of their UI state in these (for example
+   * aiux-checklist's ChecklistController: addItemValue, menuOpen, …) rather
+   * than in @state() fields. Lit stores them in a private Set whose property
+   * name is minified in production builds (`_$EO`), so it is found by shape:
+   * an own Set of objects, at least one implementing a controller hook.
+   */
+  function litControllers(el) {
+    var names = [];
+    try { names = Object.getOwnPropertyNames(el); } catch (e) { return []; }
+    for (var i = 0; i < names.length; i++) {
+      var got = safeGet(el, names[i]);
+      if (!got.ok || !got.value || brand(got.value) !== 'Set' || !got.value.size) continue;
+      var members = Array.from(got.value);
+      var allObjects = members.every(function (m) { return m !== null && typeof m === 'object' && !isNode(m); });
+      var anyHook = members.some(function (m) {
+        return CONTROLLER_HOOKS.some(function (hook) { return typeof m[hook] === 'function'; });
+      });
+      if (allObjects && anyHook) return members;
+    }
+    return [];
+  }
+
+  /** Controllers keyed by a display label ("ChecklistController", "X #2", …). */
+  function controllerEntries(el) {
+    var used = {};
+    return litControllers(el).map(function (ctrl) {
+      var base = ctorName(ctrl);
+      var label = base;
+      var n = 2;
+      while (used[label]) label = base + ' #' + n++;
+      used[label] = 1;
+      return { label: label, controller: ctrl };
+    });
+  }
+
+  /** A controller's own fields: data first, then functions; the host link is dropped. */
+  function controllerView(el, ctrl) {
+    var data = {};
+    var fns = {};
+    var keys = [];
+    try { keys = Object.getOwnPropertyNames(ctrl); } catch (e) { /* ignore */ }
+    keys.forEach(function (k) {
+      var got = safeGet(ctrl, k);
+      var value = got.ok ? got.value : new Error('<getter threw: ' + got.error + '>');
+      if (value === el) return;
+      (typeof value === 'function' ? fns : data)[k] = value;
+    });
+    return Object.assign(data, fns);
   }
 
   /** `@config` fields: AIUX records them in `configSchema` on each class prototype. */
@@ -838,9 +914,6 @@
         if (el.contentDocument && el.contentDocument.documentElement) list.push(el.contentDocument.documentElement);
       } catch (e) { /* cross-origin */ }
     }
-    if (el.localName === 'slot') {
-      // Slotted content is walked where it lives (light DOM); skip here.
-    }
     var kids = el.children || [];
     for (var i = 0; i < kids.length; i++) list.push(kids[i]);
     return list;
@@ -890,7 +963,7 @@
   // ---------------------------------------------------------------------------
 
   /** Build the raw (unserialised) sections for an element. */
-  function rawSections(el, ctx, gel) {
+  function rawSections(el, ctx, gel, knownReactInfo) {
     var sections = [];
     var isCE = isCustomElementTag(el);
     var lit = isCE ? litProperties(el) : null;
@@ -912,6 +985,18 @@
         note: roots.stateCount ? 'Lit @state() fields · writes assign host[field] (triggers a re-render)' : 'this component declares no @state() fields',
         empty: !roots.stateCount
       });
+      var controllers = controllerEntries(el);
+      if (controllers.length) {
+        var ctrlRoot = {};
+        controllers.forEach(function (c) { ctrlRoot[c.label] = controllerView(el, c.controller); });
+        sections.push({
+          key: 'controllers',
+          title: 'Controllers',
+          root: ctrlRoot,
+          editable: true,
+          note: 'Lit reactive controllers — where AIUX components keep most UI state · writes set the field and call requestUpdate()'
+        });
+      }
       var schema = configSchemaOf(el);
       if (schema.length) {
         var cfg = {};
@@ -950,7 +1035,7 @@
       sections.push({ key: 'aiux', title: 'AIUX', root: aiuxRoot(el), editable: true, note: 'AIUXElement data · only `data` is writable' });
     }
 
-    var ri = ctx.includeReact ? reactInfo(el) : null;
+    var ri = knownReactInfo !== undefined ? knownReactInfo : (ctx.includeReact ? reactInfo(el) : null);
     if (ri) {
       var f = ri.fiber;
       sections.push({
@@ -1088,8 +1173,10 @@
 
   function elementLabel(el) {
     if (isCustomElementTag(el)) return componentLabel(el);
-    var ri = reactInfo(el);
-    return ri ? '<' + ri.name + '>' : nodePreview(el);
+    // Name only: reactInfo() would walk the fiber tree, and this runs for
+    // every captured event.
+    var comp = nearestComposite(reactFiberOf(el));
+    return comp ? '<' + fiberName(comp) + '>' : nodePreview(el);
   }
 
   /** Components an event passes through while bubbling (source first). */
@@ -1113,7 +1200,7 @@
   function recordStart(target, event) {
     var el = eventElement(target);
     var source = el ? nearestComponent(el, capture.ctx) : null;
-    var isCustom = Object.prototype.toString.call(event) === '[object CustomEvent]';
+    var isCustom = brand(event) === 'CustomEvent';
     if (capture.mode !== 'all' && !source) {
       // Outside components, keep only app-level CustomEvents on window/document.
       var appLevel = isCustom && !el && (isWindowObject(target) || (target && target.nodeType === 9));
@@ -1391,6 +1478,8 @@
   }
 
   var pick = { active: false, ctx: null, result: null, handlers: null };
+  // Swallowed while picking, so the page doesn't react to the selecting click.
+  var PICK_BLOCKED = ['mousedown', 'mouseup', 'pointerdown', 'pointerup', 'dblclick', 'contextmenu'];
 
   function stopPick() {
     if (!pick.active) return;
@@ -1398,8 +1487,7 @@
     var h = pick.handlers;
     window.removeEventListener('mousemove', h.move, true);
     window.removeEventListener('click', h.click, true);
-    window.removeEventListener('mousedown', h.block, true);
-    window.removeEventListener('mouseup', h.block, true);
+    PICK_BLOCKED.forEach(function (type) { window.removeEventListener(type, h.block, true); });
     window.removeEventListener('keydown', h.key, true);
     unhighlight();
   }
@@ -1443,8 +1531,7 @@
     };
     window.addEventListener('mousemove', pick.handlers.move, true);
     window.addEventListener('click', pick.handlers.click, true);
-    window.addEventListener('mousedown', pick.handlers.block, true);
-    window.addEventListener('mouseup', pick.handlers.block, true);
+    PICK_BLOCKED.forEach(function (type) { window.addEventListener(type, pick.handlers.block, true); });
     window.addEventListener('keydown', pick.handlers.key, true);
     return true;
   }
@@ -1452,26 +1539,6 @@
   // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
-
-  function ancestorsOf(el, ctx) {
-    // Ids of component ancestors (outermost first), used by the panel to
-    // expand the tree down to a picked/selected component.
-    var ids = [];
-    var cur = el;
-    var guard = 0;
-    while (cur && guard++ < 10000) {
-      if (cur.parentNode && cur.parentNode.nodeType === 11 && cur.parentNode.host) cur = cur.parentNode.host;
-      else if (cur.parentNode && cur.parentNode.nodeType === 9) {
-        var w = cur.parentNode.defaultView;
-        cur = w && w.frameElement;
-      } else cur = cur.parentNode;
-      if (cur && cur.nodeType === 1) {
-        var n = nearestComponent(cur, ctx);
-        if (n === cur) ids.unshift(register(cur));
-      }
-    }
-    return ids;
-  }
 
   /**
    * Resolve an inspection subject: a component id (number) or an event id
@@ -1510,12 +1577,149 @@
     });
   }
 
+  /**
+   * A JSON-friendly copy of `v` for "Copy value". `stack` holds the objects
+   * currently being copied, so only true cycles (not shared references) are
+   * replaced with "[Circular]".
+   */
+  function toPlain(v, stack) {
+    var t = typeof v;
+    if (v === null || t === 'string' || t === 'boolean') return v;
+    if (t === 'number') return isFinite(v) ? v : String(v);
+    if (t === 'undefined') return undefined;
+    if (t === 'function') return '[Function ' + (v.name || 'anonymous') + ']';
+    if (t === 'bigint' || t === 'symbol') return v.toString();
+    if (isNode(v)) return nodePreview(v);
+    if (stack.indexOf(v) !== -1) return '[Circular]';
+    if (stack.length > 60) return '[Too deep]';
+    var b = brand(v);
+    if (b === 'Date') return isNaN(v) ? 'Invalid Date' : v.toISOString();
+    if (b === 'RegExp') return String(v);
+    if (b === 'Error') return (v.name || 'Error') + ': ' + v.message;
+    stack.push(v);
+    var out;
+    try {
+      if (Array.isArray(v)) {
+        out = [];
+        for (var i = 0; i < v.length; i++) out.push(toPlain(v[i], stack));
+      } else if (b === 'Set') {
+        out = [];
+        v.forEach(function (item) { out.push(toPlain(item, stack)); });
+      } else if (b === 'Map') {
+        out = {};
+        v.forEach(function (val, key) { out[typeof key === 'string' ? key : preview(key)] = toPlain(val, stack); });
+      } else {
+        out = {};
+        Object.keys(v).forEach(function (key) {
+          var got = safeGet(v, key);
+          out[key] = got.ok ? toPlain(got.value, stack) : '<getter threw: ' + got.error + '>';
+        });
+      }
+    } finally {
+      stack.pop();
+    }
+    return out;
+  }
+
   function parseValue(text) {
     if (text === 'undefined') return undefined;
     try {
       return JSON.parse(text);
     } catch (e) {
       return text;
+    }
+  }
+
+  function applyEdit(el, sectionKey, path, value, ctx) {
+    try {
+      if (sectionKey === 'properties') {
+        if (!path.length) return { ok: false, error: 'Select a property' };
+        var name = path[0];
+        var next = path.length === 1 ? value : immutableSet(el[name], path.slice(1), value);
+        el[name] = next;
+        return { ok: true, method: 'host.' + name + ' = …' };
+      }
+      if (sectionKey === 'attributes') {
+        if (path.length !== 1) return { ok: false, error: 'Attributes are flat strings' };
+        if (value === null || value === undefined) el.removeAttribute(path[0]);
+        else el.setAttribute(path[0], typeof value === 'string' ? value : JSON.stringify(value));
+        return { ok: true, method: 'setAttribute' };
+      }
+      if (sectionKey === 'state' && litProperties(el)) {
+        if (!path.length) return { ok: false, error: 'Select a state field' };
+        el[path[0]] = path.length === 1 ? value : immutableSet(el[path[0]], path.slice(1), value);
+        return { ok: true, method: 'host.' + path[0] + ' = …' };
+      }
+      if (sectionKey === 'controllers') {
+        if (path.length < 2) return { ok: false, error: 'Select a controller field' };
+        var entry = controllerEntries(el).filter(function (c) { return c.label === path[0]; })[0];
+        if (!entry) return { ok: false, error: 'Controller not found' };
+        var ctrl = entry.controller;
+        ctrl[path[1]] = path.length === 2 ? value : immutableSet(ctrl[path[1]], path.slice(2), value);
+        if (typeof el.requestUpdate === 'function') el.requestUpdate();
+        return { ok: true, method: path[0] + '.' + path[1] + ' = … + requestUpdate()' };
+      }
+      if (sectionKey === 'config') {
+        if (!path.length) return { ok: false, error: 'Select a config field' };
+        el.aiuxConfigData = immutableSet(el.aiuxConfigData || {}, path, value);
+        return { ok: true, method: 'host.aiuxConfigData = {…}' };
+      }
+      if (sectionKey === 'aiux') {
+        if (path[0] !== 'data') return { ok: false, error: 'Only `data` is writable' };
+        el.data = path.length === 1 ? value : immutableSet(el.data, path.slice(1), value);
+        return { ok: true, method: 'host.data = …' };
+      }
+      if (sectionKey === 'state') {
+        var st = findState(el, ctx);
+        if (!st) return { ok: false, error: 'No state found' };
+        if (!path.length) return { ok: false, error: 'Select a state key' };
+        var updater = findUpdater(el, st);
+        var top = realKey(st.value, path[0]);
+        var newTop = path.length === 1 ? value : immutableSet(st.value[top], path.slice(1), value);
+        if (updater) {
+          var patch = {};
+          patch[top] = newTop;
+          updater.fn.call(updater.self, patch);
+          return { ok: true, method: updater.name + '()' };
+        }
+        st.value[top] = newTop;
+        // Nudge common re-render hooks; harmless if absent.
+        ['requestUpdate', 'forceUpdate', 'render', 'rerender'].some(function (m) {
+          if (typeof el[m] === 'function') {
+            try { el[m](); return true; } catch (e) { return false; }
+          }
+          return false;
+        });
+        return { ok: true, method: 'mutated in place (may not re-render)' };
+      }
+      if (sectionKey === 'react.state') {
+        var ri = reactInfo(el);
+        var inst = ri && ri.fiber.stateNode;
+        if (!inst || typeof inst.setState !== 'function') return { ok: false, error: 'Not a class component' };
+        var k = path[0];
+        var p = {};
+        p[k] = path.length === 1 ? value : immutableSet(inst.state[k], path.slice(1), value);
+        inst.setState(p);
+        return { ok: true, method: 'setState()' };
+      }
+      if (sectionKey === 'react.hooks') {
+        var info = reactInfo(el);
+        var hooks = info ? reactHooks(info.fiber) : [];
+        // Hook keys look like "1: State"; the number is the hook's index.
+        var h = hooks[parseInt(path[0], 10)];
+        if (!h) return { ok: false, error: 'Edit a hook value' };
+        var q = h.__hook.queue;
+        if (!q || typeof q.dispatch !== 'function') return { ok: false, error: 'Only useState/useReducer hooks are editable' };
+        if (!isBasicStateReducer(q.lastRenderedReducer)) {
+          return { ok: false, error: 'useReducer state cannot be set directly' };
+        }
+        var nv = path.length === 1 ? value : immutableSet(h.__hook.memoizedState, path.slice(1), value);
+        q.dispatch(nv);
+        return { ok: true, method: 'hook dispatch()' };
+      }
+      return { ok: false, error: 'Section is read-only' };
+    } catch (e) {
+      return { ok: false, error: String(e && e.message || e) };
     }
   }
 
@@ -1561,7 +1765,7 @@
       if (isCustomElementTag(el) && litProperties(el)) kinds.push('Lit');
       if (isCustomElementTag(el) && isAiuxElement(el)) kinds.push('AIUX');
       if (ri) kinds.push('React');
-      var sections = serializeSections(rawSections(el, ctx, gel), ctx);
+      var sections = serializeSections(rawSections(el, ctx, gel, ri), ctx);
       return {
         id: Number(id),
         subject: 'component',
@@ -1569,97 +1773,23 @@
         label: isCustomElementTag(el) ? componentLabel(el) : (ri ? '<' + ri.name + '>' : nodePreview(el)),
         kinds: kinds,
         connected: el.isConnected,
-        ancestors: ancestorsOf(el, ctx),
         sections: sections
       };
     },
 
+    /**
+     * Write an edited value. `text` is parsed as JSON; anything else is stored
+     * as a plain string (with a warning if it looks like malformed JSON).
+     */
     setValue: function (id, sectionKey, path, text, opts) {
       var el = lookup(id);
       if (!el) return { ok: false, error: 'Element is no longer available' };
-      var ctx = makeCtx(opts);
       var value = parseValue(text);
-      try {
-        if (sectionKey === 'properties') {
-          if (!path.length) return { ok: false, error: 'Select a property' };
-          var name = path[0];
-          var next = path.length === 1 ? value : immutableSet(el[name], path.slice(1), value);
-          el[name] = next;
-          return { ok: true, method: 'host.' + name + ' = …' };
-        }
-        if (sectionKey === 'attributes') {
-          if (path.length !== 1) return { ok: false, error: 'Attributes are flat strings' };
-          if (value === null || value === undefined) el.removeAttribute(path[0]);
-          else el.setAttribute(path[0], typeof value === 'string' ? value : JSON.stringify(value));
-          return { ok: true, method: 'setAttribute' };
-        }
-        if (sectionKey === 'state' && litProperties(el)) {
-          if (!path.length) return { ok: false, error: 'Select a state field' };
-          el[path[0]] = path.length === 1 ? value : immutableSet(el[path[0]], path.slice(1), value);
-          return { ok: true, method: 'host.' + path[0] + ' = …' };
-        }
-        if (sectionKey === 'config') {
-          if (!path.length) return { ok: false, error: 'Select a config field' };
-          el.aiuxConfigData = immutableSet(el.aiuxConfigData || {}, path, value);
-          return { ok: true, method: 'host.aiuxConfigData = {…}' };
-        }
-        if (sectionKey === 'aiux') {
-          if (path[0] !== 'data') return { ok: false, error: 'Only `data` is writable' };
-          el.data = path.length === 1 ? value : immutableSet(el.data, path.slice(1), value);
-          return { ok: true, method: 'host.data = …' };
-        }
-        if (sectionKey === 'state') {
-          var st = findState(el, ctx);
-          if (!st) return { ok: false, error: 'No state found' };
-          if (!path.length) return { ok: false, error: 'Select a state key' };
-          var updater = findUpdater(el, st);
-          var top = realKey(st.value, path[0]);
-          var newTop = path.length === 1 ? value : immutableSet(st.value[top], path.slice(1), value);
-          if (updater) {
-            var patch = {};
-            patch[top] = newTop;
-            updater.fn.call(updater.self, patch);
-            return { ok: true, method: updater.name + '()' };
-          }
-          st.value[top] = newTop;
-          // Nudge common re-render hooks; harmless if absent.
-          ['requestUpdate', 'forceUpdate', 'render', 'rerender'].some(function (m) {
-            if (typeof el[m] === 'function') {
-              try { el[m](); return true; } catch (e) { return false; }
-            }
-            return false;
-          });
-          return { ok: true, method: 'mutated in place (may not re-render)' };
-        }
-        if (sectionKey === 'react.state') {
-          var ri = reactInfo(el);
-          var inst = ri && ri.fiber.stateNode;
-          if (!inst || typeof inst.setState !== 'function') return { ok: false, error: 'Not a class component' };
-          var k = path[0];
-          var p = {};
-          p[k] = path.length === 1 ? value : immutableSet(inst.state[k], path.slice(1), value);
-          inst.setState(p);
-          return { ok: true, method: 'setState()' };
-        }
-        if (sectionKey === 'react.hooks') {
-          var info = reactInfo(el);
-          var hooks = info ? reactHooks(info.fiber) : [];
-          // Hook keys look like "1: State"; the number is the hook's index.
-          var h = hooks[parseInt(path[0], 10)];
-          if (!h) return { ok: false, error: 'Edit a hook value' };
-          var q = h.__hook.queue;
-          if (!q || typeof q.dispatch !== 'function') return { ok: false, error: 'Only useState/useReducer hooks are editable' };
-          if (!isBasicStateReducer(q.lastRenderedReducer)) {
-            return { ok: false, error: 'useReducer state cannot be set directly' };
-          }
-          var nv = path.length === 1 ? value : immutableSet(h.__hook.memoizedState, path.slice(1), value);
-          q.dispatch(nv);
-          return { ok: true, method: 'hook dispatch()' };
-        }
-        return { ok: false, error: 'Section is read-only' };
-      } catch (e) {
-        return { ok: false, error: String(e && e.message || e) };
+      var res = applyEdit(el, sectionKey, path, value, makeCtx(opts));
+      if (res.ok && value === text && /^\s*[[{"]/.test(text)) {
+        res.warning = 'not valid JSON, so it was stored as a string';
       }
+      return res;
     },
 
     highlight: function (id) {
@@ -1730,20 +1860,8 @@
     copyValue: function (id, sectionKey, path, opts, gel) {
       var r = sectionValue(id, sectionKey, path, opts, gel);
       if (!r.ok) return null;
-      var seen = [];
       try {
-        return JSON.stringify(r.value, function (k, v) {
-          if (typeof v === 'function') return '[Function ' + (v.name || 'anonymous') + ']';
-          if (typeof v === 'bigint') return v.toString();
-          if (isNode(v)) return nodePreview(v);
-          if (v instanceof Map) return Object.fromEntries(v);
-          if (v instanceof Set) return Array.from(v);
-          if (isObjectLike(v)) {
-            if (seen.indexOf(v) !== -1) return '[Circular]';
-            seen.push(v);
-          }
-          return v;
-        }, 2);
+        return JSON.stringify(toPlain(r.value, []), null, 2);
       } catch (e) {
         return String(r.value);
       }
@@ -1791,6 +1909,16 @@
     },
 
     eventStatus: captureStatus,
+
+    /**
+     * Start recording in a (same-origin) child frame's window right away.
+     * Called from that frame at document start by "Reload & record"; frames
+     * are otherwise picked up on the next getEvents() poll.
+     */
+    adoptFrame: function (win) {
+      if (capture.active) patchWindow(win);
+      return capture.active;
+    },
 
     dispose: function () {
       capture.active = false;

@@ -86,6 +86,7 @@
         this.id = id;
         this.expanded = {};
         this.previous.clear();
+        this.editing = false; // an edit in progress belonged to the previous subject
       }
       return this.refresh(true);
     }
@@ -285,11 +286,26 @@
     }
 
     async beginEdit(section, path, node, valueEl) {
+      // The edit is bound to the subject it started on: if the selection
+      // changes before it is committed, it is dropped rather than applied to
+      // whatever is selected by then.
+      const id = this.id;
       this.editing = true;
       let text = editText(node);
       const multiline = !PRIMITIVES.has(node.t);
       if (multiline) {
-        text = (await call('copyValue', this.id, section.key, path, this.cfg.getOptions())) || '';
+        try {
+          text = (await call('copyValue', id, section.key, path, this.cfg.getOptions())) || '';
+        } catch (e) {
+          if (this.id === id) this.editing = false;
+          this.status('Cannot edit: ' + e.message, true);
+          return;
+        }
+        if (this.id !== id) return;
+        if (!valueEl.isConnected) {
+          this.editing = false; // re-rendered while the value was loading
+          return;
+        }
       }
       const input = multiline
         ? h('textarea', { class: 'edit-input', rows: Math.min(14, text.split('\n').length + 1) })
@@ -305,13 +321,21 @@
       const finish = async (commit) => {
         if (done) return;
         done = true;
+        if (this.id !== id) return;
         this.editing = false;
         if (commit && input.value !== text) {
-          const res = await call('setValue', this.id, section.key, path, input.value, this.cfg.getOptions());
-          if (res && res.ok) this.status('Updated ' + path.join('.') + ' via ' + res.method);
-          else this.status('Edit failed: ' + ((res && res.error) || 'unknown error'), true);
+          try {
+            const res = await call('setValue', id, section.key, path, input.value, this.cfg.getOptions());
+            if (res && res.ok) {
+              this.status('Updated ' + path.join('.') + ' via ' + res.method + (res.warning ? ' — ' + res.warning : ''), !!res.warning);
+            } else {
+              this.status('Edit failed: ' + ((res && res.error) || 'unknown error'), true);
+            }
+          } catch (e) {
+            this.status('Edit failed: ' + e.message, true);
+          }
         }
-        this.refresh(true);
+        if (this.id === id) this.refresh(true);
       };
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') finish(false);

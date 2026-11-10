@@ -28,7 +28,8 @@
       (harness.html?page=aiux). Components are real Lit (production build)
       elements on a small AIUXElement look-alike that mirrors the public
       surface of @servicenow/aiux's base class: Lit properties + @state,
-      symbol-keyed `data`, @config fields recorded in `configSchema`,
+      symbol-keyed `data`, @config fields recorded in `configSchema`, a
+      reactive controller holding UI state,
       `static capabilities`, setLoaderData()/trackEvent(), and CustomEvents
       dispatched from the host with bubbles + composed.
     -->
@@ -77,6 +78,21 @@
         });
       }
 
+      // Like real AIUX components, UI state lives in a Lit reactive controller.
+      class ChecklistController {
+        constructor(host) {
+          this.host = host;
+          this.addItemValue = '';
+          this.menuOpen = false;
+          this.toggleMenu = () => {
+            this.menuOpen = !this.menuOpen;
+            this.host.requestUpdate();
+          };
+          host.addController(this);
+        }
+        hostConnected() {}
+      }
+
       class AIUXChecklist extends AIUXElement {
         static properties = {
           checklistData: { type: Array, attribute: 'checklist-data' },
@@ -91,6 +107,7 @@
           this.headerTitle = '';
           this._activeIndex = -1;
           this._draft = '';
+          this._ctrl = new ChecklistController(this);
           this.addEventListener('keydown', this._onKeyDown);
         }
         _onKeyDown() {}
@@ -107,6 +124,8 @@
         render() {
           return html`
             <h4>${this.headerTitle} <small>(${this.configSize})</small></h4>
+            ${this._ctrl.menuOpen ? html`<div class="menu">Edit all · Delete all</div>` : ''}
+            ${this._ctrl.addItemValue ? html`<div class="draft">draft: ${this._ctrl.addItemValue}</div>` : ''}
             <ul>${this.checklistData.map((item, i) => html`
               <li class=${i === this._activeIndex ? 'active' : ''} @click=${() => this._click(item, i)}>
                 ${i === this._activeIndex ? '▶ ' : ''}${item.label}

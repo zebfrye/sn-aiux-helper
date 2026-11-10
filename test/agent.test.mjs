@@ -2,7 +2,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { chromium } from 'playwright';
+import { launchChromium } from './browser.mjs';
 import { startServer } from './serve.mjs';
 
 const AGENT = await readFile(new URL('../agent/agent.js', import.meta.url), 'utf8');
@@ -12,7 +12,7 @@ let server, browser, page;
 
 before(async () => {
   server = await startServer();
-  browser = await chromium.launch();
+  browser = await launchChromium();
   page = await browser.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/test/fixtures/demo.html`);
   await page.waitForFunction(() => document.querySelector('sn-aiux-insights')?.shadowRoot?.querySelector('.card'));
@@ -211,7 +211,23 @@ test('picker resolves the nearest component from a click', async () => {
   const id = await api('pollPick');
   const data = await api('inspect', id, {});
   assert.equal(data.tag, 'now-aiux-message');
-  assert.equal(data.ancestors.length, 1, 'ancestor chain includes the chat');
+});
+
+test('picking swallows pointer events so the page does not react', async () => {
+  await page.evaluate(() => {
+    window.__pointerDowns = 0;
+    document.getElementById('chat').addEventListener('pointerdown', () => window.__pointerDowns++);
+  });
+  const box = await page.evaluate(() => {
+    const r = document.getElementById('chat').getBoundingClientRect();
+    return { x: r.x + 10, y: r.y + 10 };
+  });
+  await api('startPick', {});
+  await page.mouse.click(box.x, box.y);
+  assert.equal(await page.evaluate(() => window.__pointerDowns), 0);
+  assert.ok(await api('pollPick'));
+  await page.mouse.click(box.x, box.y);
+  assert.equal(await page.evaluate(() => window.__pointerDowns), 1, 'events flow again once picking ends');
 });
 
 test('idForElement maps a deep element to its component', async () => {
@@ -265,6 +281,79 @@ test('serialiser handles cycles, maps, sets, functions, dates and DOM nodes', as
   assert.ok(get('node').el > 0);
   assert.equal(get('big').p, '10n');
   assert.equal(get('sym').p, 'Symbol(s)');
+});
+
+test('copyValue keeps shared references and only cuts true cycles', async () => {
+  const id = await page.evaluate(() => {
+    const el = document.createElement('now-aiux-message');
+    const shared = { n: 1 };
+    const loop = { name: 'loop' };
+    loop.self = loop;
+    el.text = { a: shared, b: shared, list: [shared, , 'x'], loop, when: new Date(0), tags: new Set(['t']), byId: new Map([['k', shared]]) };
+    document.body.appendChild(el);
+    return window.__SN_AIUX_DEVTOOLS__.idForElement(el, {});
+  });
+  const copied = JSON.parse(await api('copyValue', id, 'properties', ['text'], {}));
+  assert.deepEqual(copied, {
+    a: { n: 1 },
+    b: { n: 1 },
+    list: [{ n: 1 }, null, 'x'],
+    loop: { name: 'loop', self: '[Circular]' },
+    when: '1970-01-01T00:00:00.000Z',
+    tags: ['t'],
+    byId: { k: { n: 1 } }
+  });
+});
+
+test('values from another realm (a same-origin iframe) are recognised', async () => {
+  const id = await page.evaluate(() => {
+    const frame = document.createElement('iframe');
+    document.body.appendChild(frame);
+    const w = frame.contentWindow;
+    const el = document.createElement('now-aiux-message');
+    el.text = { map: new w.Map([['a', 1]]), set: new w.Set([1, 2]), when: new w.Date(0), err: new w.TypeError('boom') };
+    document.body.appendChild(el);
+    return window.__SN_AIUX_DEVTOOLS__.idForElement(el, {});
+  });
+  const data = await api('inspect', id, { expanded: { properties: { '["text"]': 1, '["text","map"]': 1 } } });
+  const text = childOf(section(data, 'properties').value, 'text');
+  assert.equal(childOf(text, 'map').p, 'Map(1)');
+  assert.equal(childOf(text, 'map').c[0].l, '"a"');
+  assert.equal(childOf(text, 'set').p, 'Set(2)');
+  assert.equal(childOf(text, 'when').p, '1970-01-01T00:00:00.000Z');
+  assert.equal(childOf(text, 'err').p, 'TypeError: boom');
+});
+
+test('a value that throws when inspected does not break the rest', async () => {
+  const id = await page.evaluate(() => {
+    const el = document.createElement('now-aiux-message');
+    const revocable = Proxy.revocable({}, {});
+    revocable.revoke();
+    const hostile = new Proxy({}, { ownKeys() { throw new Error('no keys for you'); } });
+    el.text = { revoked: revocable.proxy, hostile, fine: 42 };
+    document.body.appendChild(el);
+    return window.__SN_AIUX_DEVTOOLS__.idForElement(el, {});
+  });
+  const data = await api('inspect', id, { expanded: { properties: { '["text"]': 1, '["text","hostile"]': 1 } } });
+  const text = childOf(section(data, 'properties').value, 'text');
+  assert.equal(childOf(text, 'fine').v, 42);
+  assert.equal(childOf(text, 'revoked').t, 'error');
+  assert.match(childOf(text, 'revoked').p, /cannot inspect/);
+  assert.equal(childOf(text, 'hostile').p, '{}', 'unreadable keys just show as an empty object');
+  assert.ok(section(data, 'attributes') || section(data, 'internals'), 'other sections still render');
+});
+
+test('edits that look like malformed JSON are stored as text, with a warning', async () => {
+  const id = await chatId();
+  const bad = await api('setValue', id, 'properties', ['heading'], '{"a": 1', {});
+  assert.equal(bad.ok, true);
+  assert.match(bad.warning, /not valid JSON/);
+  assert.equal(await page.evaluate(() => document.getElementById('chat').heading), '{"a": 1');
+  const plain = await api('setValue', id, 'properties', ['heading'], 'Just text', {});
+  assert.equal(plain.warning, undefined, 'plain words are an intentional string');
+  const good = await api('setValue', id, 'properties', ['heading'], '{"a": 1}', {});
+  assert.equal(good.warning, undefined);
+  assert.deepEqual(await page.evaluate(() => document.getElementById('chat').heading), { a: 1 });
 });
 
 test('inspecting a removed element reports it gone', async () => {

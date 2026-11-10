@@ -109,7 +109,17 @@
    * recording events from the very start.
    */
   async function reloadAndRecord(opts) {
-    const injectedScript = await agentBundle('a.startEventCapture(' + JSON.stringify(opts || {}) + ');');
+    // injectedScript runs in every frame. A same-origin child frame hands
+    // itself to the top frame's agent (one log for the whole page); the top
+    // frame, and frames that can't reach it, install the agent themselves.
+    const install = await agentBundle('a.startEventCapture(' + JSON.stringify(opts || {}) + ');');
+    const injectedScript =
+      '(function () {\n' +
+      '  var parentAgent = null;\n' +
+      '  try { parentAgent = window !== window.top && window.top[' + JSON.stringify(AGENT_GLOBAL) + ']; } catch (e) { /* cross-origin */ }\n' +
+      '  if (parentAgent && typeof parentAgent.adoptFrame === "function" && parentAgent.adoptFrame(window)) return;\n' +
+      install + '\n' +
+      '})();';
     chrome.devtools.inspectedWindow.reload({ ignoreCache: false, injectedScript });
   }
 

@@ -9,8 +9,6 @@
   const Settings = window.AiuxSettings;
   const h = window.aiuxH;
 
-  if (chrome.devtools.panels.themeName === 'dark') document.body.classList.add('dark');
-
   const $ = (id) => document.getElementById(id);
   const treeEl = $('tree');
   const statusEl = $('status');
@@ -24,6 +22,8 @@
   let pollTimer = null;
   let treeTick = 0;
   let picking = false;
+  let hoverId = null; // component currently highlighted in the page
+  let panelVisible = true; // false while another DevTools panel is showing
 
   const opts = (extra) => Settings.agentOptions(settings, extra);
 
@@ -168,11 +168,18 @@
     select(id);
   });
 
+  function highlight(id) {
+    if (id === hoverId) return;
+    hoverId = id;
+    (id === null ? call('unhighlight') : call('highlight', id)).catch(() => {});
+  }
+
   treeEl.addEventListener('mouseover', (e) => {
     const row = e.target.closest('.tree-row');
-    if (row) call('highlight', Number(row.dataset.id)).catch(() => {});
+    if (row) highlight(Number(row.dataset.id));
   });
-  treeEl.addEventListener('mouseleave', () => call('unhighlight').catch(() => {}));
+  treeEl.addEventListener('mouseleave', () => highlight(null));
+  treeEl.addEventListener('blur', () => highlight(null));
 
   treeEl.addEventListener('keydown', (e) => {
     const rows = Array.from(treeEl.querySelectorAll('.tree-row'));
@@ -200,7 +207,7 @@
     e.preventDefault();
     const next = Number(rows[i].dataset.id);
     select(next);
-    call('highlight', next).catch(() => {});
+    highlight(next);
   });
 
   $('filter').addEventListener('input', renderTree);
@@ -235,6 +242,7 @@
 
   function stopPicking() {
     picking = false;
+    hoverId = null; // the agent hides its overlay when picking ends
     $('pick').classList.remove('active');
   }
 
@@ -265,7 +273,7 @@
     pollTimer = null;
     if (!settings.live) return;
     pollTimer = setInterval(() => {
-      if (document.hidden || document.body.dataset.tab !== 'components') return;
+      if (!panelVisible || document.hidden || document.body.dataset.tab !== 'components') return;
       details.refresh(false);
       // Rebuilding the tree walks the whole DOM, so do it less often.
       if (++treeTick % 3 === 0) loadTree(true);
@@ -349,6 +357,7 @@
 
   chrome.devtools.network.onNavigated.addListener(() => {
     selectedId = null;
+    hoverId = null;
     collapsed = new Set();
     treeSig = '';
     details.clear('Page navigated — select a component.');
@@ -374,7 +383,7 @@
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
     document.querySelectorAll('.tab-page').forEach((p) => p.classList.toggle('hidden', p.id !== 'tab-' + name));
     document.body.dataset.tab = name;
-    document.dispatchEvent(new CustomEvent('aiux-panel:tab', { detail: name }));
+    if (name === 'components') details.refresh(false);
   }
 
   document.querySelector('.tabs').addEventListener('click', (e) => {
@@ -382,13 +391,24 @@
     if (tab) showTab(tab.dataset.tab);
   });
 
-  // Used by the Events tab to jump to the component that dispatched an event.
   window.AiuxPanel = {
+    // Used by the Events tab to jump to the component that dispatched an event.
     selectComponent(id) {
       showTab('components');
       return select(id, { reveal: true });
     },
-    agentOptions: opts
+    agentOptions: opts,
+    // Called by devtools.js when the AIUX panel is shown or hidden, so the
+    // page isn't polled while another DevTools panel is in front.
+    setVisible(visible) {
+      const wasVisible = panelVisible;
+      panelVisible = !!visible;
+      if (panelVisible && !wasVisible && document.body.dataset.tab === 'components') {
+        details.refresh(false);
+        loadTree(true);
+      }
+      if (!panelVisible) highlight(null);
+    }
   };
 
   showTab('components');

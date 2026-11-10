@@ -8,8 +8,6 @@
   const { callSource } = window.AiuxBridge;
   const Settings = window.AiuxSettings;
 
-  if (chrome.devtools.panels.themeName === 'dark') document.body.classList.add('dark');
-
   const statusEl = document.getElementById('status');
   const setStatus = (msg, isError) => {
     statusEl.textContent = msg || '';
@@ -38,9 +36,20 @@
   chrome.devtools.panels.elements.onSelectionChanged.addListener(follow);
   chrome.devtools.network.onNavigated.addListener(() => details.clear('Page navigated.'));
 
+  let visible = true; // false while the sidebar pane is collapsed or another panel is showing
+
   setInterval(() => {
-    if (!document.hidden && Settings.load().live) details.refresh(false);
+    if (visible && !document.hidden && Settings.load().live) details.refresh(false);
   }, 1000);
+
+  // Called by devtools.js when the sidebar pane is shown or hidden.
+  window.AiuxSidebar = {
+    setVisible(v) {
+      const was = visible;
+      visible = !!v;
+      if (visible && !was) follow();
+    }
+  };
 
   follow();
 })();
