@@ -97,22 +97,39 @@ test('editing Lit state, properties, config and data re-renders', async () => {
 
 test('reactive controllers expose the UI state AIUX components keep there', async () => {
   const id = (await treeIds())['aiux-checklist'];
-  const data = await inspect(id, { expanded: { controllers: { '["ChecklistController"]': 1 } } });
+  const CTRL = '_ctrl (ChecklistController)';
+  const data = await inspect(id, { expanded: { controllers: { [JSON.stringify([CTRL])]: 1 } } });
   assert.deepEqual(data.sections.map((s) => s.key).slice(0, 4), ['properties', 'state', 'controllers', 'config']);
-  const ctrl = childOf(section(data, 'controllers').value, 'ChecklistController');
-  assert.deepEqual(keys(ctrl), ['addItemValue', 'menuOpen', 'toggleMenu'], 'data first, functions last, host link dropped');
+  const ctrl = childOf(section(data, 'controllers').value, CTRL);
+  assert.deepEqual(keys(ctrl), ['addItemValue', 'menuOpen', '_announcer', 'toggleMenu'], 'data first, functions last, host link dropped');
   assert.equal(childOf(ctrl, 'menuOpen').v, false);
 
-  const res = await api('setValue', id, 'controllers', ['ChecklistController', 'menuOpen'], 'true', {});
-  assert.deepEqual(res, { ok: true, method: 'ChecklistController.menuOpen = … + requestUpdate()' });
+  const res = await api('setValue', id, 'controllers', [CTRL, 'menuOpen'], 'true', {});
+  assert.deepEqual(res, { ok: true, method: '_ctrl.menuOpen = … + requestUpdate()' });
   await page.waitForFunction(() => !!document.getElementById('list').shadowRoot.querySelector('.menu'));
-  await api('setValue', id, 'controllers', ['ChecklistController', 'addItemValue'], '"Call the user"', {});
+  await api('setValue', id, 'controllers', [CTRL, 'addItemValue'], '"Call the user"', {});
   await page.waitForFunction(() => document.getElementById('list').shadowRoot.textContent.includes('draft: Call the user'));
-  assert.equal((await api('setValue', id, 'controllers', ['ChecklistController'], '{}', {})).ok, false, 'a controller itself is not replaceable');
-  await api('setValue', id, 'controllers', ['ChecklistController', 'menuOpen'], 'false', {});
+  assert.equal((await api('setValue', id, 'controllers', [CTRL], '{}', {})).ok, false, 'a controller itself is not replaceable');
+  await api('setValue', id, 'controllers', [CTRL, 'menuOpen'], 'false', {});
+});
 
-  const toolbar = await inspect((await treeIds())['content-toolbar']);
-  assert.equal(section(toolbar, 'controllers'), undefined, 'no section without controllers');
+test('controllers get useful names even when a minifier renamed their classes', async () => {
+  // On a real instance ChecklistController is just "E". Property names survive
+  // minification, so controllers are named after the field that holds them.
+  const ids = await treeIds();
+  const list = await inspect(ids['aiux-checklist']);
+  assert.deepEqual(keys(section(list, 'controllers').value), [
+    'LocalizeController', // class "eg": recognised by its shape
+    'controller 2', // class "ez": nothing to go on
+    '_ctrl (ChecklistController)', // held by host._ctrl; a real class name is kept
+    '_ctrl._announcer' // class "o": held by another controller
+  ]);
+  const toolbar = await inspect(ids['content-toolbar']);
+  assert.deepEqual(keys(section(toolbar, 'controllers').value), ['_menu'], 'class "E" held by host._menu');
+
+  const edit = await api('setValue', ids['content-toolbar'], 'controllers', ['_menu', 'open'], 'true', {});
+  assert.deepEqual(edit, { ok: true, method: '_menu.open = … + requestUpdate()' });
+  assert.equal(await page.evaluate(() => document.querySelector('content-toolbar')._menu.open), true);
 });
 
 test('declared events come from the catalog; listeners from getEventListeners', async () => {

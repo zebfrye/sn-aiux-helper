@@ -1,6 +1,6 @@
 {
   "name": "sn-aiux-devtools",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Chrome DevTools extension for inspecting ServiceNow AIUX / Next Experience component properties and state.",
   "type": "module",

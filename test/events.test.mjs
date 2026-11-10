@@ -48,7 +48,7 @@ test('controller state is shown and editable from the panel', async () => {
   await panel.locator('.section-controllers .edit-input').fill('true');
   await panel.locator('.section-controllers .edit-input').press('Enter');
   await inspected.locator('aiux-checklist .menu').waitFor();
-  assert.match(await panel.locator('#status').textContent(), /ChecklistController\.menuOpen = … \+ requestUpdate\(\)/);
+  assert.match(await panel.locator('#status').textContent(), /_ctrl\.menuOpen = … \+ requestUpdate\(\)/);
 
   await menuOpen.locator('.val', { hasText: 'true' }).dblclick();
   await panel.locator('.section-controllers .edit-input').fill('false');

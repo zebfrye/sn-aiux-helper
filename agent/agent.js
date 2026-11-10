@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.2.0';
+  var VERSION = '1.2.1';
   var GLOBAL = '__SN_AIUX_DEVTOOLS__';
 
   if (window[GLOBAL] && window[GLOBAL].version === VERSION) {
@@ -533,14 +533,60 @@
     return [];
   }
 
-  /** Controllers keyed by a display label ("ChecklistController", "X #2", …). */
+  // Production builds are minified, which renames classes
+  // ("ChecklistController" becomes "E") but not properties. So a controller
+  // is labelled by the host field that holds it ("_ctrl"), and its class name
+  // is only shown when it looks like a real one.
+  function looksMinified(name) {
+    return !name || name === 'Object' || name.length <= 3;
+  }
+
+  /** Name of the own property of `owner` whose value is `value`, if any. */
+  function propertyHolding(owner, value) {
+    var names = [];
+    try { names = Object.getOwnPropertyNames(owner); } catch (e) { return null; }
+    for (var i = 0; i < names.length; i++) {
+      var got = safeGet(owner, names[i]);
+      if (got.ok && got.value === value) return names[i];
+    }
+    return null;
+  }
+
+  /**
+   * Controllers with display labels, in registration order. A label is, in
+   * order of preference: the host field holding the controller, its class
+   * name if not minified, a controller recognised by shape, the field of
+   * another controller that holds it ("_ctrl._live"), or "controller N".
+   */
   function controllerEntries(el) {
+    var controllers = litControllers(el);
+    var bases = controllers.map(function (ctrl) {
+      var cls = ctorName(ctrl);
+      var named = !looksMinified(cls);
+      var prop = propertyHolding(el, ctrl);
+      if (prop) return prop + (named ? ' (' + cls + ')' : '');
+      if (named) return cls;
+      // @lit/localize's controller, added by updateWhenLocaleChanges().
+      if (Object.prototype.hasOwnProperty.call(ctrl, '__litLocalizeEventHandler')) return 'LocalizeController';
+      return null;
+    });
+    controllers.forEach(function (ctrl, i) {
+      if (bases[i]) return;
+      for (var j = 0; j < controllers.length; j++) {
+        if (j === i || !bases[j]) continue;
+        var prop = propertyHolding(controllers[j], ctrl);
+        if (prop) {
+          bases[i] = bases[j].replace(/ \(.*\)$/, '') + '.' + prop;
+          return;
+        }
+      }
+      bases[i] = 'controller ' + (i + 1);
+    });
     var used = {};
-    return litControllers(el).map(function (ctrl) {
-      var base = ctorName(ctrl);
-      var label = base;
+    return controllers.map(function (ctrl, i) {
+      var label = bases[i];
       var n = 2;
-      while (used[label]) label = base + ' #' + n++;
+      while (used[label]) label = bases[i] + ' #' + n++;
       used[label] = 1;
       return { label: label, controller: ctrl };
     });
@@ -994,7 +1040,7 @@
           title: 'Controllers',
           root: ctrlRoot,
           editable: true,
-          note: 'Lit reactive controllers — where AIUX components keep most UI state · writes set the field and call requestUpdate()'
+          note: 'Lit reactive controllers — where AIUX components keep most UI state · named after the host field that holds them · writes set the field and call requestUpdate()'
         });
       }
       var schema = configSchemaOf(el);
@@ -1657,7 +1703,7 @@
         var ctrl = entry.controller;
         ctrl[path[1]] = path.length === 2 ? value : immutableSet(ctrl[path[1]], path.slice(2), value);
         if (typeof el.requestUpdate === 'function') el.requestUpdate();
-        return { ok: true, method: path[0] + '.' + path[1] + ' = … + requestUpdate()' };
+        return { ok: true, method: path[0].replace(/ \(.*\)$/, '') + '.' + path[1] + ' = … + requestUpdate()' };
       }
       if (sectionKey === 'config') {
         if (!path.length) return { ok: false, error: 'Select a config field' };

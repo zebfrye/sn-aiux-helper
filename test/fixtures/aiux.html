@@ -78,6 +78,38 @@
         });
       }
 
+      // Controllers named the way a minifier leaves them on a real instance
+      // (class names shortened, property names intact).
+      class eg { // @lit/localize's controller: registered, but held by no field
+        constructor(host) {
+          this.host = host;
+          this.__litLocalizeEventHandler = () => {};
+          host.addController(this);
+        }
+        hostConnected() {}
+      }
+      class ez { // registered, held by no field, no recognisable shape
+        constructor(host) {
+          this._entries = [];
+          this._rafId = 0;
+          host.addController(this);
+        }
+        hostUpdated() {}
+      }
+      class o { // held by another controller, not by the host
+        constructor(host) {
+          this._live = null;
+          host.addController(this);
+        }
+      }
+      class E { // held by a host field
+        constructor(host) {
+          this.open = false;
+          host.addController(this);
+        }
+        hostConnected() {}
+      }
+
       // Like real AIUX components, UI state lives in a Lit reactive controller.
       class ChecklistController {
         constructor(host) {
@@ -107,7 +139,10 @@
           this.headerTitle = '';
           this._activeIndex = -1;
           this._draft = '';
+          new eg(this);
+          new ez(this);
           this._ctrl = new ChecklistController(this);
+          this._ctrl._announcer = new o(this);
           this.addEventListener('keydown', this._onKeyDown);
         }
         _onKeyDown() {}
@@ -141,6 +176,7 @@
         constructor() {
           super();
           this.items = ['Save', 'Assign'];
+          this._menu = new E(this);
         }
         render() {
           return html`${this.items.map((label) => html`<button @click=${() => this.dispatchEvent(new CustomEvent('content-toolbar:action', { detail: { label }, bubbles: true, composed: true }))}>${label}</button> `)}`;

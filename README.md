@@ -21,7 +21,7 @@ A Chrome DevTools extension for inspecting **ServiceNow AIUX components** ([`@se
   |---|---|---|
   | **Properties** | AIUX/Lit components: Lit's registry of reactive properties (`static elementProperties`), excluding `@state` fields. Other components: `static properties` / `componentConfig.properties`, `observedAttributes`, and getters/setters on the class | ✅ assigns `host[prop] = value` (nested edits copy the objects along the path, so components that compare by reference see a change) |
   | **State** | AIUX/Lit components: the `@state()` fields. Other components: the host's state object (see [State discovery](#state-discovery)) | ✅ Lit: assigns the field, which re-renders. Others: through `updateState`/`setState`/`patchState` if one is found, otherwise by mutating the object in place |
-  | **Controllers** | Lit reactive controllers registered on the component. This is where AIUX components keep most of their UI state: for example, `aiux-checklist`'s `ChecklistController` holds `addItemValue`, `menuOpen` and the drag state. Data fields are listed first, handler functions after | ✅ sets the field, then calls `requestUpdate()` |
+  | **Controllers** | Lit reactive controllers registered on the component. This is where AIUX components keep most of their UI state: for example, `aiux-checklist`'s `ChecklistController` holds `addItemValue`, `menuOpen` and the drag state. Data fields are listed first, handler functions after. Each controller is named after the component field that holds it (`_ctrl`), because production builds minify class names (`ChecklistController` becomes `E`) but leave field names alone | ✅ sets the field, then calls `requestUpdate()` |
   | **Config** | AIUX `@config` fields (from `configSchema`) | ✅ writes `aiuxConfigData` |
   | **Events** | Events the component **declares** (`@fires` in the `@servicenow/aiux` sources) and events it actually **dispatched** while recording, with counts and last time. Undeclared events are flagged | read-only |
   | **Event listeners** | Listeners registered on the host and its shadow root (from DevTools' `getEventListeners`). Click **{}** on a listener to open its source | read-only |
@@ -117,7 +117,7 @@ The tests use the Chromium that Playwright downloads (`npx playwright install ch
 
 ### Verifying against a real AIUX component
 
-The fixtures use a look-alike of AIUX's base class. `npm run verify:aiux` runs the agent against the real thing: it bundles `aiux-checklist` from an installed `@servicenow/aiux`, loads it in headless Chromium, and checks 12 things, among them:
+The fixtures use a look-alike of AIUX's base class. `npm run verify:aiux` runs the agent against the real thing: it bundles `aiux-checklist` from an installed `@servicenow/aiux`, loads it in headless Chromium, and checks 13 things, among them:
 
 - properties, `@state`, `@config` and controller state are all found;
 - a real click is logged and recognised as a declared event;
@@ -130,9 +130,10 @@ mkdir /tmp/aiux && cd /tmp/aiux && npm init -y
 npm install @servicenow/aiux --ignore-scripts
 cd -                                  # back to this repo
 npm run verify:aiux -- /tmp/aiux
+npm run verify:aiux -- /tmp/aiux --minify   # minified, like a production instance build
 ```
 
-The package's code only runs inside the headless browser, never in Node. Modules that exist only on a ServiceNow instance are replaced with inert stubs. Last run: all 12 checks pass against `@servicenow/aiux@22.67.1`.
+The package's code only runs inside the headless browser, never in Node. Modules that exist only on a ServiceNow instance are replaced with inert stubs. Last run: all 13 checks pass against `@servicenow/aiux@22.67.1`, both as shipped and minified.
 
 Run it again when AIUX updates, together with `npm run catalog`.
 

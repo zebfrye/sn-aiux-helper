@@ -6,6 +6,7 @@
 //   mkdir /tmp/aiux && cd /tmp/aiux && npm init -y
 //   npm install @servicenow/aiux --ignore-scripts
 //   cd <this repo> && npm run verify:aiux -- /tmp/aiux
+//   npm run verify:aiux -- /tmp/aiux --minify     # as a production build
 //
 // The component is bundled with the package's own esbuild and loaded in
 // headless Chromium; none of the package's code runs in Node. Modules that
@@ -16,7 +17,11 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { launchChromium } from '../test/browser.mjs';
 
-const dir = resolve(process.argv[2] || '.');
+const args = process.argv.slice(2);
+// --minify shortens class names the way a production instance build does
+// (ChecklistController becomes a single letter), to check nothing relies on them.
+const minify = args.includes('--minify');
+const dir = resolve(args.find((a) => !a.startsWith('--')) || '.');
 const require = createRequire(resolve(dir, 'package.json'));
 let esbuild, pkg;
 try {
@@ -45,7 +50,7 @@ const stubUnresolvable = {
   }
 };
 
-console.log(`Bundling aiux-checklist from ${pkg.name}@${pkg.version} …`);
+console.log(`Bundling aiux-checklist from ${pkg.name}@${pkg.version}${minify ? ' (minified)' : ''} …`);
 const built = await esbuild.build({
   stdin: {
     contents: `
@@ -59,6 +64,7 @@ const built = await esbuild.build({
   write: false,
   format: 'esm',
   platform: 'browser',
+  minify,
   target: 'chrome120', // also transpiles the decorators in the package's src/ build
   logLevel: 'error',
   // Entry points pick their build with process.env.AIUX_VERSION (default vN).
@@ -110,9 +116,13 @@ const info = await page.evaluate(() => {
   const a = window.__SN_AIUX_DEVTOOLS__;
   const el = document.getElementById('list');
   const id = a.idForElement(el, {});
-  const data = a.inspect(id, { expanded: { controllers: { '["ChecklistController"]': 1 } } });
+  // The checklist's controller is labelled after the host field holding it
+  // ("_ctrl"), plus its class name where the build isn't minified.
+  const labels = (a.inspect(id, {}).sections.find((s) => s.key === 'controllers')?.value?.c || []).map((c) => c.k);
+  const label = labels.find((k) => /^_ctrl\b/.test(k)) || labels.find((k) => /ChecklistController/.test(k));
+  const data = a.inspect(id, { expanded: { controllers: { [JSON.stringify([label])]: 1 } } });
   const keysOf = (key) => (data.sections.find((s) => s.key === key)?.value?.c || []).map((c) => c.k);
-  const controller = (data.sections.find((s) => s.key === 'controllers')?.value?.c || []).find((c) => c.k === 'ChecklistController');
+  const controller = (data.sections.find((s) => s.key === 'controllers')?.value?.c || []).find((c) => c.k === label);
   return {
     id,
     real: el instanceof window.__REAL_AIUX__.AIUXElement,
@@ -122,6 +132,8 @@ const info = await page.evaluate(() => {
     state: keysOf('state'),
     config: keysOf('config'),
     events: keysOf('events'),
+    controllerLabels: labels,
+    controllerLabel: label,
     controllerFields: (controller?.c || []).map((c) => c.k)
   };
 });
@@ -131,7 +143,8 @@ check('tree nests aiux-checklist-item under aiux-checklist', /aiux-checklist#lis
 check('Lit properties are listed', info.properties.includes('checklistData') && info.properties.includes('headerTitle'), `${info.properties.length} properties`);
 check('@state fields are listed', info.state.length > 0, info.state.join(', '));
 check('@config fields are listed', info.config.some((k) => k.startsWith('config')), `${info.config.length} config fields`);
-check('controller state is listed', info.controllerFields.includes('addItemValue'), `ChecklistController: ${info.controllerFields.slice(0, 5).join(', ')}, …`);
+check('controllers are named after the host field that holds them', /^_ctrl\b/.test(info.controllerLabel || ''), info.controllerLabels.join(' | '));
+check('controller state is listed', info.controllerFields.includes('addItemValue'), `${info.controllerLabel}: ${info.controllerFields.slice(0, 5).join(', ')}, …`);
 check('declared events come from the catalog', info.events.includes('aiux-checklist:item-clicked'), `${info.events.length} declared`);
 
 // A real user click must be logged, with its source and declaration.
@@ -149,11 +162,11 @@ check('a real click is logged as aiux-checklist:item-clicked', logged.source ===
 check('…and recognised as declared', /^yes/.test(logged.declared || ''), logged.declared);
 
 // Edits must reach the real component and re-render it.
-await page.evaluate((id) => {
+await page.evaluate(([id, label]) => {
   const a = window.__SN_AIUX_DEVTOOLS__;
   a.setValue(id, 'properties', ['headerTitle'], '"Edited by DevTools"', {});
-  a.setValue(id, 'controllers', ['ChecklistController', 'addItemValue'], '"Typed from DevTools"', {});
-}, info.id);
+  a.setValue(id, 'controllers', [label, 'addItemValue'], '"Typed from DevTools"', {});
+}, [info.id, info.controllerLabel]);
 await page.waitForTimeout(300);
 const after = await page.evaluate(() => {
   const root = document.getElementById('list').shadowRoot;
@@ -165,5 +178,5 @@ check('editing controller state re-renders the component', after.inputs.includes
 await browser.close();
 for (const r of results) console.log(`${r.ok ? '✓' : '✗'} ${r.name}${r.detail ? `  (${r.detail})` : ''}`);
 const failed = results.filter((r) => !r.ok).length;
-console.log(failed ? `\n${failed} of ${results.length} checks failed` : `\nAll ${results.length} checks passed against ${pkg.name}@${pkg.version}`);
+console.log(failed ? `\n${failed} of ${results.length} checks failed` : `\nAll ${results.length} checks passed against ${pkg.name}@${pkg.version}${minify ? ' (minified)' : ''}`);
 process.exit(failed ? 1 : 0);

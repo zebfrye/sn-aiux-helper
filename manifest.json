@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SN AIUX DevTools",
   "short_name": "AIUX DevTools",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Inspect the properties and state of ServiceNow AIUX / Next Experience components from Chrome DevTools.",
   "minimum_chrome_version": "111",
   "devtools_page": "devtools/devtools.html",
