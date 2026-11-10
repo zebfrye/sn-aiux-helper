@@ -99,7 +99,7 @@ test('reactive controllers expose the UI state AIUX components keep there', asyn
   const id = (await treeIds())['aiux-checklist'];
   const CTRL = '_ctrl (ChecklistController)';
   const data = await inspect(id, { expanded: { controllers: { [JSON.stringify([CTRL])]: 1 } } });
-  assert.deepEqual(data.sections.map((s) => s.key).slice(0, 4), ['properties', 'state', 'controllers', 'config']);
+  assert.deepEqual(data.sections.map((s) => s.key).slice(0, 5), ['properties', 'state', 'controllers', 'contexts', 'config']);
   const ctrl = childOf(section(data, 'controllers').value, CTRL);
   assert.deepEqual(keys(ctrl), ['addItemValue', 'menuOpen', '_announcer', 'toggleMenu'], 'data first, functions last, host link dropped');
   assert.equal(childOf(ctrl, 'menuOpen').v, false);
@@ -130,6 +130,88 @@ test('controllers get useful names even when a minifier renamed their classes', 
   const edit = await api('setValue', ids['content-toolbar'], 'controllers', ['_menu', 'open'], 'true', {});
   assert.deepEqual(edit, { ok: true, method: '_menu.open = … + requestUpdate()' });
   assert.equal(await page.evaluate(() => document.querySelector('content-toolbar')._menu.open), true);
+});
+
+// ---- Contexts ----------------------------------------------------------------
+
+const idOf = (selector) => page.evaluate((sel) => window.__SN_AIUX_DEVTOOLS__.idForElement(document.querySelector(sel), {}), selector);
+const fieldId = (table) => idOf(`aiux-record-provider[table=${table}] aiux-record-field`);
+
+test('a component lists the contexts it subscribes to, with live values', async () => {
+  const list = await inspect((await treeIds())['aiux-checklist'], { expanded: { contexts: { '["route"]': 1 } } });
+  const ctx = section(list, 'contexts');
+  assert.deepEqual(keys(ctx.value), ['route', 'user (immutable)']);
+  assert.equal(childOf(childOf(ctx.value, 'route'), 'path').v, '/now/incident/INC0010023');
+  assert.equal(childOf(ctx.value, 'user (immutable)').p, '{name, roles}');
+
+  // A scoped context is read per consumer: each field sees its own provider's value.
+  const incident = await inspect(await fieldId('incident'), { expanded: { contexts: { '["record-apis (scoped)"]': 1 } } });
+  assert.deepEqual(keys(section(incident, 'contexts').value), ['record-apis (scoped)', 'route']);
+  assert.equal(childOf(childOf(section(incident, 'contexts').value, 'record-apis (scoped)'), 'table').v, 'incident');
+  const problem = await inspect(await fieldId('problem'), { expanded: { contexts: { '["record-apis (scoped)"]': 1 } } });
+  assert.equal(childOf(childOf(section(problem, 'contexts').value, 'record-apis (scoped)'), 'table').v, 'problem');
+
+  // aiux-kit widgets subscribe through @lit/context's ContextConsumer.
+  const kit = await inspect(await idOf('kit-route-widget'));
+  assert.deepEqual(keys(section(kit, 'contexts').value), ['route', 'kit-theme (@lit/context)']);
+  assert.equal(childOf(section(kit, 'contexts').value, 'kit-theme (@lit/context)').v, 'dark');
+
+  assert.equal(section(await inspect((await treeIds())['content-toolbar']), 'contexts'), undefined, 'no section without contexts');
+});
+
+test('editing a global context goes through set() and re-renders every subscriber', async () => {
+  const id = (await treeIds())['aiux-checklist'];
+  const res = await api('setValue', id, 'contexts', ['route', 'path'], '"/now/problem/PRB0040001"', {});
+  assert.deepEqual(res, { ok: true, method: 'context "route".set()' });
+  await page.waitForFunction(() => document.getElementById('list').shadowRoot.querySelector('.route').textContent.includes('/now/problem/PRB0040001'));
+  await page.waitForFunction(() => document.querySelector('kit-route-widget').shadowRoot.textContent.includes('/now/problem/PRB0040001'));
+  assert.deepEqual(await page.evaluate(() => window.__fixture.routeContext.get().params), { table: 'incident' }, 'the rest of the value is kept');
+
+  const immutable = await api('setValue', id, 'contexts', ['user (immutable)', 'name'], '"Mallory"', {});
+  assert.deepEqual(immutable, { ok: false, error: 'The "user" context is immutable' });
+  const scoped = await api('setValue', await fieldId('incident'), 'contexts', ['record-apis (scoped)', 'table'], '"x"', {});
+  assert.equal(scoped.ok, false);
+  assert.match(scoped.error, /scoped to its provider/);
+  await api('setValue', id, 'contexts', ['route', 'path'], '"/now/incident/INC0010023"', {});
+});
+
+test('the page-level view lists every declared context, its values and consumers', async () => {
+  const data = await inspect('page:contexts', { expanded: { 'ctx.consumers': { '["route"]': 1 }, 'ctx.scoped': { '["record-apis (scoped)"]': 1 } } });
+  assert.equal(data.subject, 'page');
+  assert.deepEqual(data.kinds, ['4 contexts in use']);
+  assert.deepEqual(data.sections.map((s) => s.key), ['ctx.global', 'ctx.scoped', 'ctx.consumers', 'ctx.ssr']);
+  assert.deepEqual(keys(section(data, 'ctx.global').value), ['route', 'user (immutable)']);
+
+  const scoped = section(data, 'ctx.scoped').value;
+  assert.deepEqual(keys(scoped), ['record-apis (scoped)', 'kit-theme (@lit/context)']);
+  assert.deepEqual(childOf(scoped, 'record-apis (scoped)').c.map((c) => c.p), ['{table, isDirty}', '{table, isDirty}'], 'one value per provider');
+
+  const consumers = childOf(section(data, 'ctx.consumers').value, 'route');
+  assert.deepEqual(consumers.c.map((c) => c.p), ['<aiux-checklist#list>', '<aiux-record-field>', '<aiux-record-field>', '<kit-route-widget>']);
+  assert.ok(consumers.c.every((c) => c.el > 0), 'consumers are links to the components');
+  assert.equal(childOf(section(data, 'ctx.ssr').value, 'window.__CONTEXT_DATA__').p, '{route}');
+
+  // Edits, copy and store work on the page-level view too.
+  const edit = await api('setValue', 'page:contexts', 'ctx.global', ['route', 'matched'], 'false', {});
+  assert.deepEqual(edit, { ok: true, method: 'context "route".set()' });
+  assert.equal(await page.evaluate(() => window.__fixture.routeContext.get().matched), false);
+  await api('setValue', 'page:contexts', 'ctx.global', ['route', 'matched'], 'true', {});
+  assert.equal((await api('setValue', 'page:contexts', 'ctx.scoped', ['record-apis (scoped)', '0', 'table'], '"x"', {})).ok, false);
+  assert.equal(JSON.parse(await api('copyValue', 'page:contexts', 'ctx.global', ['user (immutable)'], {})).name, 'Abel Tuter');
+  assert.equal(await api('storeGlobal', 'page:contexts', null, null, {}), null);
+});
+
+test('inspecting contexts never subscribes an element that is not a consumer', async () => {
+  const subscribers = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('aiux-record-provider')].map((p) => window.__fixture.recordApis._subscriberCount(p))
+    );
+  assert.deepEqual(await subscribers(), [1, 1], 'each provider has exactly its own field');
+  // Inspect everything: the providers themselves, unrelated components, the page view.
+  for (const selector of ['aiux-record-provider', 'content-toolbar', '#list', 'kit-route-widget']) await inspect(await idOf(selector));
+  await inspect('page:contexts');
+  await api('getTree', {});
+  assert.deepEqual(await subscribers(), [1, 1], 'still only the declared consumers');
 });
 
 test('declared events come from the catalog; listeners from getEventListeners', async () => {

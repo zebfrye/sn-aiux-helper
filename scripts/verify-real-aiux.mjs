@@ -55,8 +55,29 @@ const built = await esbuild.build({
   stdin: {
     contents: `
       import '@servicenow/aiux/aiux-checklist';
-      import { AIUXElement } from '@servicenow/aiux/aiux-components-core';
-      window.__REAL_AIUX__ = { AIUXElement };`,
+      import { AIUXElement, createContext } from '@servicenow/aiux/aiux-components-core';
+      import { routeContext } from '@servicenow/aiux/aiux-context';
+      import { html } from 'lit';
+      window.__REAL_AIUX__ = { AIUXElement };
+
+      // Contexts: a consumer and a provider built on the real AIUXElement and
+      // the real createContext(), to check the Contexts section against them.
+      const counter = createContext('devtools-counter', { count: 1 });
+      const [locked] = createContext('devtools-locked', { who: 'server' }, { immutable: true });
+      const record = createContext('devtools-record', null, { scoped: true });
+      class DemoProvider extends AIUXElement {
+        connectedCallback() {
+          super.connectedCallback();
+          record.provide(this, { number: this.getAttribute('number') });
+        }
+        render() { return html\`<slot></slot>\`; }
+      }
+      class DemoConsumer extends AIUXElement {
+        static contexts = [counter, locked, record, routeContext];
+        render() { return html\`<span class="out">count=\${counter.get().count} record=\${record.get(this)?.number}</span>\`; }
+      }
+      customElements.define('aiux-demo-provider', DemoProvider);
+      customElements.define('aiux-demo-consumer', DemoConsumer);`,
     resolveDir: dir,
     loader: 'js'
   },
@@ -76,6 +97,7 @@ if (stubbed.size) console.log(`Stubbed platform-only modules: ${[...stubbed].sor
 const HTML = `<!doctype html><meta charset="utf-8">
 <aiux-checklist id="list" header-title="Resolution steps" allow-editing
   checklist-data='[{"itemId":"1","checked":false,"label":"Reproduce the issue"},{"itemId":"2","checked":true,"label":"Restart the mail service"}]'></aiux-checklist>
+<aiux-demo-provider number="INC0010023"><aiux-demo-consumer id="consumer"></aiux-demo-consumer></aiux-demo-provider>
 <script type="module" src="/bundle.js"></script>`;
 
 const agent = await readFile(new URL('../agent/agent.js', import.meta.url), 'utf8');
@@ -174,6 +196,36 @@ const after = await page.evaluate(() => {
 });
 check('editing a property re-renders the component', after.text.includes('Edited by DevTools'));
 check('editing controller state re-renders the component', after.inputs.includes('Typed from DevTools'));
+
+// Contexts, against the real createContext() and AIUXElement's own subscription.
+const contexts = await page.evaluate(() => {
+  const a = window.__SN_AIUX_DEVTOOLS__;
+  const id = a.idForElement(document.getElementById('consumer'), {});
+  const expanded = { contexts: { '["devtools-counter"]': 1, '["devtools-record (scoped)"]': 1 } };
+  const section = a.inspect(id, { expanded }).sections.find((s) => s.key === 'contexts');
+  const rows = section ? section.value.c : [];
+  const field = (label, key) => rows.find((c) => c.k === label)?.c?.find((c) => c.k === key)?.v;
+  const pageView = a.inspect('page:contexts', {});
+  return {
+    labels: rows.map((c) => c.k),
+    count: field('devtools-counter', 'count'),
+    number: field('devtools-record (scoped)', 'number'),
+    pageGlobals: (pageView.sections.find((s) => s.key === 'ctx.global').value.c || []).map((c) => c.k),
+    edit: a.setValue(id, 'contexts', ['devtools-counter', 'count'], '5', {}),
+    immutable: a.setValue(id, 'contexts', ['devtools-locked (immutable)', 'who'], '"me"', {})
+  };
+});
+await page.waitForTimeout(300);
+const consumerText = await page.evaluate(() => document.getElementById('consumer').shadowRoot.textContent);
+check(
+  'contexts a component declares are listed (global, immutable, scoped, proxy)',
+  contexts.labels.join('|') === 'devtools-counter|devtools-locked (immutable)|devtools-record (scoped)|route',
+  contexts.labels.join(' | ')
+);
+check('global and scoped context values are read', contexts.count === 1 && contexts.number === 'INC0010023', `count=${contexts.count}, record=${contexts.number}`);
+check('the page-level view finds them', contexts.pageGlobals.includes('devtools-counter') && contexts.pageGlobals.includes('route'), contexts.pageGlobals.join(' | '));
+check('editing a global context re-renders its subscribers', contexts.edit.ok && /count=5/.test(consumerText), `${contexts.edit.method} → "${consumerText.trim()}"`);
+check('immutable contexts refuse edits', contexts.immutable.ok === false, contexts.immutable.error);
 
 await browser.close();
 for (const r of results) console.log(`${r.ok ? '✓' : '✗'} ${r.name}${r.detail ? `  (${r.detail})` : ''}`);

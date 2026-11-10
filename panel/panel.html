@@ -10,6 +10,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab active" role="tab" data-tab="components">Components</button>
       <button class="tab" role="tab" data-tab="events">Events <span id="events-badge" class="tab-badge hidden"></span></button>
+      <button class="tab" role="tab" data-tab="contexts">Contexts</button>
     </nav>
 
     <section id="tab-components" class="tab-page">
@@ -71,11 +72,23 @@
       </div>
     </section>
 
+    <section id="tab-contexts" class="tab-page hidden">
+      <div class="toolbar">
+        <button id="ctx-refresh" title="Re-scan the page for contexts">⟳</button>
+        <span class="hint">App state shared through AIUX contexts, as declared by the components on this page.</span>
+        <span id="ctx-status" class="status"></span>
+      </div>
+      <div class="main">
+        <div id="ctx-details" class="details"></div>
+      </div>
+    </section>
+
     <script src="../shared/theme.js"></script>
     <script src="../shared/bridge.js"></script>
     <script src="../shared/settings.js"></script>
     <script src="../shared/details.js"></script>
     <script src="panel.js"></script>
     <script src="events.js"></script>
+    <script src="contexts.js"></script>
   </body>
 </html>

@@ -1,14 +1,15 @@
 # SN AIUX DevTools
 
-A Chrome DevTools extension for inspecting **ServiceNow AIUX components** ([`@servicenow/aiux`](https://www.npmjs.com/package/@servicenow/aiux)). It works much like the Next Experience Dev Tools: browse the component tree, view and edit each component's **properties** and **state**, see the **events** it declares and the **listeners** registered on it, and watch events in a live **event logger**.
+A Chrome DevTools extension for inspecting **ServiceNow AIUX components** ([`@servicenow/aiux`](https://www.npmjs.com/package/@servicenow/aiux)). It works much like the Next Experience Dev Tools: browse the component tree, view and edit each component's **properties** and **state**, see the **events** it declares and the **listeners** registered on it, watch events in a live **event logger**, and inspect the app state shared through AIUX **contexts**.
 
 ![Components tab](docs/panel.png)
 
 ## Features
 
-- **AIUX panel** (a new DevTools tab), with two tabs:
+- **AIUX panel** (a new DevTools tab), with three tabs:
   - **Components**: the component tree and inspector (below).
   - **Events**: a logger of the events components dispatch (see [Events logger](#events-logger)).
+  - **Contexts**: the app state shared through AIUX contexts (see [Contexts](#contexts)).
 - **Components tab**
   - A component tree that walks the light DOM, open **shadow roots** and same-origin **iframes**. AIUX elements are always included, even when their tag doesn't match the tag pattern (e.g. `content-toolbar`).
   - **Pick** mode: click any component in the page to select it (Esc cancels).
@@ -22,6 +23,7 @@ A Chrome DevTools extension for inspecting **ServiceNow AIUX components** ([`@se
   | **Properties** | AIUX/Lit components: Lit's registry of reactive properties (`static elementProperties`), excluding `@state` fields. Other components: `static properties` / `componentConfig.properties`, `observedAttributes`, and getters/setters on the class | ✅ assigns `host[prop] = value` (nested edits copy the objects along the path, so components that compare by reference see a change) |
   | **State** | AIUX/Lit components: the `@state()` fields. Other components: the host's state object (see [State discovery](#state-discovery)) | ✅ Lit: assigns the field, which re-renders. Others: through `updateState`/`setState`/`patchState` if one is found, otherwise by mutating the object in place |
   | **Controllers** | Lit reactive controllers registered on the component. This is where AIUX components keep most of their UI state: for example, `aiux-checklist`'s `ChecklistController` holds `addItemValue`, `menuOpen` and the drag state. Data fields are listed first, handler functions after. Each controller is named after the component field that holds it (`_ctrl`), because production builds minify class names (`ChecklistController` becomes `E`) but leave field names alone | ✅ sets the field, then calls `requestUpdate()` |
+  | **Contexts** | The AIUX contexts the component subscribes to (`static contexts`, or `@lit/context` consumers in aiux-kit widgets), with live values | ✅ global contexts, through their own `set()`. Immutable and scoped contexts are read-only |
   | **Config** | AIUX `@config` fields (from `configSchema`) | ✅ writes `aiuxConfigData` |
   | **Events** | Events the component **declares** (`@fires` in the `@servicenow/aiux` sources) and events it actually **dispatched** while recording, with counts and last time. Undeclared events are flagged | read-only |
   | **Event listeners** | Listeners registered on the host and its shadow root (from DevTools' `getEventListeners`). Click **{}** on a listener to open its source | read-only |
@@ -55,6 +57,31 @@ AIUX components fire plain DOM `CustomEvent`s from their host element, e.g. `aiu
 - **⌖ <component>** jumps to the dispatching component in the Components tab, and **$ Store** saves the `Event` object as a console global.
 
 Native browser events, such as a real mouse click, aren't dispatched through `dispatchEvent`, so they aren't logged. The component events those clicks cause are.
+
+## Contexts
+
+![Contexts tab](docs/contexts.png)
+
+AIUX shares app state between components through contexts (`createContext()` in `aiux-components-core`). There are two kinds:
+
+- **Global contexts** hold one value for the whole page, such as `route`, `user` or `theme`. Components read them with `get()`. Mutable ones can be changed with `set()`, which re-renders every subscriber.
+- **Scoped contexts** are provided by one element to its descendants, such as `record-apis`. Two providers on a page give their own subtrees different values.
+
+The **Contexts** tab lists every context that a component on the page subscribes to:
+
+- **Global contexts**: the current value of each. Double-click to edit; the write goes through the context's own `set()`, so every subscribed component updates. Immutable contexts refuse edits.
+- **Scoped contexts**: one entry per distinct value that consumers see (in practice, one per provider).
+- **Consumers**: the components subscribed to each context. Click one to open it in the Components tab.
+- **Server data**: the context values the server sent with the page (`window.__CONTEXT_DATA__`). These are initial values, not live ones.
+
+Each component also gets a **Contexts** section in the Components tab, showing the contexts it subscribes to. For a scoped context that is the value from *its* provider.
+
+What the extension can and can't see:
+
+- It finds contexts through `static contexts` on component classes, and through `@lit/context` consumers on aiux-kit widgets. The framework's full registry is private, so a context that no mounted component declares won't be listed.
+- Reading never changes subscriptions. A scoped context is only read for components that declare it, because reading it for any other element would subscribe that element.
+- Contexts a component observes as a *collection* (`static contextCollections`) are listed but not read, because reading them can evict providers.
+- It can't tell which element *provides* a scoped context, only what each consumer receives.
 
 ### Declared-events catalog
 
@@ -102,7 +129,7 @@ If nothing is found, open **Host internals** to see where the framework keeps it
 ## Development
 
 ```bash
-npm install          # Playwright, Lit and React (used by the demo fixtures)
+npm install          # Playwright, Lit, @lit/context and React (used by the demo fixtures)
 npm test             # agent tests + end-to-end panel/sidebar/events tests in headless Chromium
 npm run lint
 npm run demo         # http://localhost:5173/test/harness.html?page=aiux
@@ -112,16 +139,17 @@ The tests use the Chromium that Playwright downloads (`npx playwright install ch
 
 `npm run demo` serves a harness that runs the **real** panel and sidebar against a fixture page, with `chrome.devtools` mocked, so you can work on the UI without a ServiceNow instance.
 
-- `?page=aiux` (`test/fixtures/aiux.html`) uses real Lit components on an `AIUXElement` look-alike. It has properties, `@state`, `@config`, `data` and `capabilities`, and it fires `CustomEvent`s.
+- `?page=aiux` (`test/fixtures/aiux.html`) uses real Lit components on an `AIUXElement` look-alike. It has properties, `@state`, `@config`, controllers, global and scoped contexts, `data` and `capabilities`, and it fires `CustomEvent`s.
 - The default page (`test/fixtures/demo.html`) has generic custom elements and a React tree inside a shadow root.
 
 ### Verifying against a real AIUX component
 
-The fixtures use a look-alike of AIUX's base class. `npm run verify:aiux` runs the agent against the real thing: it bundles `aiux-checklist` from an installed `@servicenow/aiux`, loads it in headless Chromium, and checks 13 things, among them:
+The fixtures use a look-alike of AIUX's base class. `npm run verify:aiux` runs the agent against the real thing: it bundles `aiux-checklist` from an installed `@servicenow/aiux`, loads it in headless Chromium, and checks 18 things, among them:
 
 - properties, `@state`, `@config` and controller state are all found;
 - a real click is logged and recognised as a declared event;
-- edits re-render the component.
+- edits re-render the component;
+- contexts created with the real `createContext()` are listed, read and edited.
 
 It is opt-in because the package and its dependencies are about 1 GB:
 
@@ -133,7 +161,7 @@ npm run verify:aiux -- /tmp/aiux
 npm run verify:aiux -- /tmp/aiux --minify   # minified, like a production instance build
 ```
 
-The package's code only runs inside the headless browser, never in Node. Modules that exist only on a ServiceNow instance are replaced with inert stubs. Last run: all 13 checks pass against `@servicenow/aiux@22.67.1`, both as shipped and minified.
+The package's code only runs inside the headless browser, never in Node. Modules that exist only on a ServiceNow instance are replaced with inert stubs. Last run: all 18 checks pass against `@servicenow/aiux@22.67.1`, both as shipped and minified.
 
 Run it again when AIUX updates, together with `npm run catalog`.
 
@@ -150,6 +178,7 @@ shared/settings.js     settings stored in the extension's localStorage
 shared/theme.js        applies and follows the DevTools light/dark theme
 panel/panel.js         Components tab (tree + inspector) and tab switching
 panel/events.js        Events tab (logger)
+panel/contexts.js      Contexts tab
 sidebar/               Elements-panel sidebar
 scripts/               icon and event-catalog generators, real-AIUX verification
 test/                  fixture pages, chrome.devtools mock, harness, tests

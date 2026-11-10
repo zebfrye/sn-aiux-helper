@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.2.1';
+  var VERSION = '1.3.0';
   var GLOBAL = '__SN_AIUX_DEVTOOLS__';
 
   if (window[GLOBAL] && window[GLOBAL].version === VERSION) {
@@ -607,6 +607,212 @@
     return Object.assign(data, fns);
   }
 
+  // ---- AIUX contexts --------------------------------------------------------
+  //
+  // AIUX shares app state through contexts (createContext() in
+  // @servicenow/aiux/aiux-components-core):
+  //   - global contexts hold one value per page: get(), and set() unless the
+  //     context is immutable (route, user, theme, …);
+  //   - scoped contexts are provided by an element to its descendants:
+  //     provide(host, value) / get(consumer) (record-apis, …).
+  // A component declares what it consumes with `static contexts = [ctx, …]`,
+  // which is the only place the context objects can be reached from: the
+  // framework's own registry is private to its module. Older aiux-kit widgets
+  // subscribe with @lit/context's ContextConsumer controller instead.
+
+  function isContextObject(c) {
+    return !!c && typeof c === 'object' && typeof c.get === 'function' &&
+      (typeof c._name === 'string' || typeof c.subscribe === 'function' || c._scoped === true);
+  }
+
+  function contextKind(ctx) {
+    if (ctx._scoped) return 'scoped';
+    if (ctx._immutable) return 'immutable';
+    if (typeof ctx.set !== 'function') return 'read-only';
+    return 'global';
+  }
+
+  function contextName(key) {
+    if (key && typeof key === 'object' && typeof key._name === 'string' && key._name) return key._name;
+    if (typeof key === 'string' && key) return key;
+    if (typeof key === 'symbol') return key.description || key.toString();
+    return 'unnamed context';
+  }
+
+  /**
+   * Read a context for a component that consumes it. Scoped contexts are only
+   * ever read for their declared consumers: get(host) subscribes the host to
+   * the nearest provider, which is what the framework already did for them.
+   */
+  function readContext(ctx, el) {
+    try {
+      return ctx._scoped ? ctx.get(el) : ctx.get();
+    } catch (e) {
+      return new Error('<get() threw: ' + String(e && e.message || e) + '>');
+    }
+  }
+
+  /** The contexts an element consumes: [{ key, name, kind, ctx?, value }]. */
+  function contextsOf(el) {
+    var out = [];
+    var seen = [];
+    function add(entry) {
+      if (seen.indexOf(entry.key) !== -1) return;
+      seen.push(entry.key);
+      out.push(entry);
+    }
+    var ctor = el.constructor;
+    var declared = safeGet(ctor, 'contexts');
+    if (declared.ok && Array.isArray(declared.value)) {
+      declared.value.forEach(function (c) {
+        if (Array.isArray(c)) c = c[0]; // an immutable context's [context, setter] pair
+        if (isContextObject(c)) add({ key: c, name: contextName(c), kind: contextKind(c), ctx: c, value: readContext(c, el) });
+      });
+    }
+    var collections = safeGet(ctor, 'contextCollections');
+    if (collections.ok && Array.isArray(collections.value)) {
+      collections.value.forEach(function (c) {
+        if (!isContextObject(c)) return;
+        // collect() evicts stale providers as a side effect, so it is not called.
+        add({ key: c, name: contextName(c), kind: 'collection', value: '(every provider of this context; not read by DevTools, because collect() can evict providers)' });
+      });
+    }
+    // @lit/context consumers (aiux-kit widgets): new ContextConsumer(this, { context }).
+    litControllers(el).forEach(function (c) {
+      var own = Object.prototype.hasOwnProperty;
+      if (!own.call(c, 'context') || !own.call(c, 'provided') || !own.call(c, 'value')) return;
+      var key = c.context;
+      if (isContextObject(key)) add({ key: key, name: contextName(key), kind: contextKind(key), ctx: key, value: readContext(key, el) });
+      else add({ key: key, name: contextName(key), kind: '@lit/context', value: c.value });
+    });
+    return out;
+  }
+
+  /** Give context entries unique display labels: "route", "user (immutable)", … */
+  function labelContexts(entries) {
+    var used = {};
+    entries.forEach(function (e) {
+      var base = e.name + (e.kind === 'global' ? '' : ' (' + e.kind + ')');
+      var label = base;
+      var n = 2;
+      while (used[label]) label = base + ' #' + n++;
+      used[label] = 1;
+      e.label = label;
+    });
+    return entries;
+  }
+
+  function contextEntriesOf(el) {
+    return labelContexts(contextsOf(el));
+  }
+
+  /** Visit every element: light DOM, open shadow roots and same-origin iframes. */
+  function eachElement(node, fn, budget) {
+    if (budget.left-- <= 0) return;
+    if (node.nodeType === 1) fn(node);
+    var kids = node.nodeType === 11 ? (node.children || []) : childNodesOf(node);
+    for (var i = 0; i < kids.length; i++) eachElement(kids[i], fn, budget);
+  }
+
+  /**
+   * Every context declared by a component on the page, with its consumers:
+   * [{ key, name, kind, ctx?, label, consumers: [el], values: [distinct] }].
+   */
+  function pageContextEntries() {
+    var entries = [];
+    var keys = [];
+    eachElement(document.documentElement, function (el) {
+      if (!isCustomElementTag(el) || !litProperties(el)) return;
+      contextsOf(el).forEach(function (e) {
+        var i = keys.indexOf(e.key);
+        var rec;
+        if (i === -1) {
+          keys.push(e.key);
+          rec = { key: e.key, name: e.name, kind: e.kind, ctx: e.ctx, consumers: [], values: [] };
+          entries.push(rec);
+        } else {
+          rec = entries[i];
+        }
+        rec.consumers.push(el);
+        if (e.kind !== 'collection' && rec.values.indexOf(e.value) === -1) rec.values.push(e.value);
+      });
+    }, { left: 200000 });
+    return labelContexts(entries);
+  }
+
+  function pageContextSections() {
+    var entries = pageContextEntries();
+    var globals = {};
+    var scoped = {};
+    var consumers = {};
+    var nGlobal = 0;
+    var nScoped = 0;
+    entries.forEach(function (e) {
+      consumers[e.label] = e.consumers;
+      if (e.kind === 'scoped' || e.kind === 'collection' || e.kind === '@lit/context') {
+        scoped[e.label] = e.values;
+        nScoped++;
+      } else {
+        globals[e.label] = e.values[0];
+        nGlobal++;
+      }
+    });
+    var sections = [
+      {
+        key: 'ctx.global',
+        title: 'Global contexts',
+        root: globals,
+        editable: true,
+        note: nGlobal ? 'one value per page · writes call context.set(), which updates every subscriber · immutable contexts are read-only' : 'no component on this page declares a global context (static contexts)',
+        empty: !nGlobal
+      },
+      {
+        key: 'ctx.scoped',
+        title: 'Scoped contexts',
+        root: scoped,
+        editable: false,
+        note: nScoped ? 'provided by an element to its descendants · one entry per distinct value its consumers see' : 'no component on this page consumes a scoped context',
+        empty: !nScoped
+      },
+      {
+        key: 'ctx.consumers',
+        title: 'Consumers',
+        root: consumers,
+        editable: false,
+        note: 'components subscribed to each context · click one to inspect it',
+        empty: !entries.length
+      }
+    ];
+    var ssr = {};
+    ['__CONTEXT_DATA__', '__IMMUTABLE_CONTEXT_DATA__'].forEach(function (name) {
+      var got = safeGet(window, name);
+      if (got.ok && got.value !== undefined) ssr['window.' + name] = got.value;
+    });
+    if (Object.keys(ssr).length) {
+      sections.push({ key: 'ctx.ssr', title: 'Server data', root: ssr, editable: false, collapsed: true, note: 'context values the server sent with the page (initial values, not live)' });
+    }
+    return { sections: sections, count: entries.length };
+  }
+
+  /** Write a global context through its own set(); `entries` are labelled. */
+  function setContextValue(entries, path, value) {
+    if (!path.length) return { ok: false, error: 'Select a context' };
+    var entry = entries.filter(function (e) { return e.label === path[0]; })[0];
+    if (!entry) return { ok: false, error: 'Context not found' };
+    if (entry.kind !== 'global' || !entry.ctx) {
+      var why = entry.kind === 'immutable' ? ' is immutable'
+        : entry.kind === 'scoped' ? ' is scoped to its provider and cannot be set from here'
+        : ' cannot be set from here';
+      return { ok: false, error: 'The "' + entry.name + '" context' + why };
+    }
+    try {
+      entry.ctx.set(path.length === 1 ? value : immutableSet(entry.ctx.get(), path.slice(1), value));
+      return { ok: true, method: 'context "' + entry.name + '".set()' };
+    } catch (e) {
+      return { ok: false, error: String(e && e.message || e) };
+    }
+  }
+
   /** `@config` fields: AIUX records them in `configSchema` on each class prototype. */
   function configSchemaOf(el) {
     var entries = [];
@@ -1041,6 +1247,18 @@
           root: ctrlRoot,
           editable: true,
           note: 'Lit reactive controllers — where AIUX components keep most UI state · named after the host field that holds them · writes set the field and call requestUpdate()'
+        });
+      }
+      var ctxEntries = contextEntriesOf(el);
+      if (ctxEntries.length) {
+        var ctxRoot = {};
+        ctxEntries.forEach(function (e) { ctxRoot[e.label] = e.value; });
+        sections.push({
+          key: 'contexts',
+          title: 'Contexts',
+          root: ctxRoot,
+          editable: ctxEntries.some(function (e) { return e.kind === 'global'; }),
+          note: 'app state this component subscribes to (static contexts) · writes call context.set(), which updates every subscriber · immutable and scoped contexts are read-only'
         });
       }
       var schema = configSchemaOf(el);
@@ -1587,10 +1805,14 @@
   // ---------------------------------------------------------------------------
 
   /**
-   * Resolve an inspection subject: a component id (number) or an event id
-   * ("event:<session>:<seq>") from the Events logger.
+   * Resolve an inspection subject: a component id (number), an event id
+   * ("event:<session>:<seq>") from the Events logger, or the page-level
+   * Contexts view ("page:contexts").
    */
+  var PAGE_CONTEXTS = 'page:contexts'; // subject id of the page-level Contexts view
+
   function subjectSections(id, ctx, gel) {
+    if (id === PAGE_CONTEXTS) return { page: true, sections: pageContextSections().sections };
     if (typeof id === 'string' && id.indexOf('event:') === 0) {
       var rec = findEventRecord(id);
       return rec ? { rec: rec, sections: eventSections(rec) } : null;
@@ -1602,7 +1824,7 @@
   function sectionValue(id, sectionKey, path, opts, gel) {
     var subj = subjectSections(id, makeCtx(opts), gel);
     if (!subj) return { ok: false };
-    if (!sectionKey) return { ok: true, value: subj.el || subj.rec.event };
+    if (!sectionKey) return subj.page ? { ok: false } : { ok: true, value: subj.el || subj.rec.event };
     var s = subj.sections.filter(function (x) { return x.key === sectionKey; })[0];
     if (!s) return { ok: false };
     return walkPath(s.root, path || []);
@@ -1705,6 +1927,9 @@
         if (typeof el.requestUpdate === 'function') el.requestUpdate();
         return { ok: true, method: path[0].replace(/ \(.*\)$/, '') + '.' + path[1] + ' = … + requestUpdate()' };
       }
+      if (sectionKey === 'contexts') {
+        return setContextValue(contextEntriesOf(el), path, value);
+      }
       if (sectionKey === 'config') {
         if (!path.length) return { ok: false, error: 'Select a config field' };
         el.aiuxConfigData = immutableSet(el.aiuxConfigData || {}, path, value);
@@ -1780,11 +2005,22 @@
     },
 
     /**
-     * Describe a component (numeric id) or a logged event ("event:…" id).
+     * Describe a component (numeric id), a logged event ("event:…" id) or
+     * the page's contexts ("page:contexts").
      * `gel` is DevTools' getEventListeners, when the caller can supply it.
      */
     inspect: function (id, opts, gel) {
       var ctx = makeCtx(opts);
+      if (id === PAGE_CONTEXTS) {
+        var page = pageContextSections();
+        return {
+          id: id,
+          subject: 'page',
+          label: 'Contexts',
+          kinds: [page.count + (page.count === 1 ? ' context' : ' contexts') + ' in use'],
+          sections: serializeSections(page.sections, ctx)
+        };
+      }
       if (typeof id === 'string' && id.indexOf('event:') === 0) {
         var rec = findEventRecord(id);
         if (!rec) return { error: 'gone' };
@@ -1828,10 +2064,15 @@
      * as a plain string (with a warning if it looks like malformed JSON).
      */
     setValue: function (id, sectionKey, path, text, opts) {
-      var el = lookup(id);
-      if (!el) return { ok: false, error: 'Element is no longer available' };
       var value = parseValue(text);
-      var res = applyEdit(el, sectionKey, path, value, makeCtx(opts));
+      var res;
+      if (id === PAGE_CONTEXTS) {
+        res = sectionKey === 'ctx.global' ? setContextValue(pageContextEntries(), path, value) : { ok: false, error: 'Section is read-only' };
+      } else {
+        var el = lookup(id);
+        if (!el) return { ok: false, error: 'Element is no longer available' };
+        res = applyEdit(el, sectionKey, path, value, makeCtx(opts));
+      }
       if (res.ok && value === text && /^\s*[[{"]/.test(text)) {
         res.warning = 'not valid JSON, so it was stored as a string';
       }

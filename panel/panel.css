@@ -125,3 +125,7 @@ select { font: inherit; color: inherit; background: var(--bg); border: 1px solid
   background: var(--bg-alt);
   border-bottom: 1px solid var(--border);
 }
+
+/* ---- Contexts tab --------------------------------------------------------- */
+
+.toolbar .hint { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }

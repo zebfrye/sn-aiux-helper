@@ -1,9 +1,9 @@
 /*
  * DetailsView — renders a subject's sections as expandable, editable value
- * trees. A subject is a component (properties, state, events, listeners,
- * React props/hooks, attributes, host internals) or an event from the Events
- * logger (detail + event info). Used by the AIUX panel and the Elements
- * sidebar.
+ * trees. A subject is a component (properties, state, controllers, contexts,
+ * events, listeners, React props/hooks, attributes, host internals), an event
+ * from the Events logger (detail + event info), or the page's contexts. Used
+ * by the AIUX panel and the Elements sidebar.
  */
 (function (global) {
   'use strict';
@@ -126,7 +126,7 @@
       const header = h(
         'div',
         { class: 'details-header' },
-        h('div', { class: 'title' }, h('span', { class: 'tag', text: data.subject === 'event' || data.label.charAt(0) === '<' ? data.label : '<' + data.label + '>' })),
+        h('div', { class: 'title' }, h('span', { class: 'tag', text: data.subject !== 'component' || data.label.charAt(0) === '<' ? data.label : '<' + data.label + '>' })),
         h('div', { class: 'badges' }, data.kinds.map((k) => h('span', { class: 'badge badge-' + k.toLowerCase().replace(/\s+/g, '-'), text: k }))),
         h('div', { class: 'actions' }, this.headerActions(data))
       );
@@ -138,6 +138,7 @@
     }
 
     headerActions(data) {
+      if (data.subject === 'page') return [];
       const store = h('button', {
         title: data.subject === 'event' ? 'Store the Event object as a global variable in the console' : 'Store the host element as a global variable in the console',
         onclick: async () => {

@@ -379,11 +379,14 @@
   // Tabs
   // ---------------------------------------------------------------------------
 
+  const tabListeners = []; // called with the tab name whenever a tab is shown
+
   function showTab(name) {
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
     document.querySelectorAll('.tab-page').forEach((p) => p.classList.toggle('hidden', p.id !== 'tab-' + name));
     document.body.dataset.tab = name;
     if (name === 'components') details.refresh(false);
+    tabListeners.forEach((fn) => fn(name));
   }
 
   document.querySelector('.tabs').addEventListener('click', (e) => {
@@ -398,6 +401,13 @@
       return select(id, { reveal: true });
     },
     agentOptions: opts,
+    // For the other tabs: whether to poll, and when they come to the front.
+    isVisible: () => panelVisible && !document.hidden,
+    isLive: () => !!settings.live,
+    currentTab: () => document.body.dataset.tab,
+    onTabShown(fn) {
+      tabListeners.push(fn);
+    },
     // Called by devtools.js when the AIUX panel is shown or hidden, so the
     // page isn't polled while another DevTools panel is in front.
     setVisible(visible) {
@@ -407,6 +417,7 @@
         details.refresh(false);
         loadTree(true);
       }
+      if (panelVisible && !wasVisible) tabListeners.forEach((fn) => fn(document.body.dataset.tab));
       if (!panelVisible) highlight(null);
     }
   };
